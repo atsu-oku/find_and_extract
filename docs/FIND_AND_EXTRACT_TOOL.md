@@ -134,10 +134,7 @@
 TARGET_HOST="line-lb01p" ./generate_td_agent_conf.sh
 ```
 
-出力先:
-
-- カレントディレクトリ: `td-agent_${TARGET_HOST}.conf`
-- `/etc/td-agent/server/td-agent_${TARGET_HOST}.conf`
+出力先: カレントディレクトリ (`td-agent_${TARGET_HOST}.conf`)
 
 ホスト名プレフィックスと異なるドメインスラッグを使用したい場合は `SERVICE_SLUG_OVERRIDE` を上書き指定してください。
 

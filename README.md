@@ -29,10 +29,7 @@ Export `TARGET_HOST` with the node name (e.g. `line-lb01p`) and run the generato
 TARGET_HOST="line-lb01p" ./generate_td_agent_conf.sh
 ```
 
-The script infers `LB` / `AP` / `DB` from the hostname suffix, expands the matching template, and writes the result to:
-
-- `./td-agent_${TARGET_HOST}.conf`
-- `/etc/td-agent/server/td-agent_${TARGET_HOST}.conf`
+The script infers `LB` / `AP` / `DB` from the hostname suffix, expands the matching template, and writes the result to `./td-agent_${TARGET_HOST}.conf`。
 
 Provide `SERVICE_SLUG_OVERRIDE` if the domain slug portion should differ from the hostname prefix.
 

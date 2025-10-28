@@ -265,14 +265,8 @@ $(generate_db_section)"
 esac
 
 local_conf="./td-agent_${TARGET_HOST}.conf"
-remote_dir="/etc/td-agent/server"
-remote_conf="${remote_dir}/td-agent_${TARGET_HOST}.conf"
 
 printf '%s\n' "$config_content" > "$local_conf"
 chmod 600 "$local_conf"
 
-mkdir -p "$remote_dir"
-printf '%s\n' "$config_content" > "$remote_conf"
-chmod 600 "$remote_conf"
-
-echo "Generated ${local_conf} and ${remote_conf} for role '${role}' (service slug: ${service_slug})."
+echo "Generated ${local_conf} for role '${role}' (service slug: ${service_slug})."
