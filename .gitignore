@@ -1,2 +1,3 @@
 test_evidence/
 td-agent_*.conf
+td-agent_sender_*.conf

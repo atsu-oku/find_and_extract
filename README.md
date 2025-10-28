@@ -29,8 +29,17 @@ Export `TARGET_HOST` with the node name (e.g. `line-lb01p`) and run the generato
 TARGET_HOST="line-lb01p" ./generate_td_agent_conf.sh
 ```
 
-The script infers `LB` / `AP` / `DB` from the hostname suffix, expands the matching template, and writes the result to `./td-agent_${TARGET_HOST}.conf`。
+The script infers `LB` / `AP` / `DB` from the hostname suffix, expands the matching templates, and writes:
+
+- Aggregator側設定: `./td-agent_${TARGET_HOST}.conf`
+- 送信側設定: `./td-agent_sender_${TARGET_HOST}.conf`
 
 Provide `SERVICE_SLUG_OVERRIDE` if the domain slug portion should differ from the hostname prefix.
+
+Environment overrides for the sender template:
+
+- `FORWARD_HOST` / `FORWARD_PORT` – forward destination (defaults `172.16.161.21:24224`)
+- `POS_DIR` – directory for td-agent position files (default `/var/log/td-agent/pos`)
+- `NGINX_LOG_DIR`, `APACHE_LOG_DIR`, `APP_LOG_DIR`, `MYSQL_LOG_DIR`, `REDIS_LOG_DIR`
 
 If the hostname suffix does not map to `-lb`, `-ap`, or `-db`, the generator falls back to a combined template that includes every log block (LB/AP/DB).

@@ -134,9 +134,17 @@
 TARGET_HOST="line-lb01p" ./generate_td_agent_conf.sh
 ```
 
-出力先: カレントディレクトリ (`td-agent_${TARGET_HOST}.conf`)
+出力先:
 
-ホスト名プレフィックスと異なるドメインスラッグを使用したい場合は `SERVICE_SLUG_OVERRIDE` を上書き指定してください。
+- 集約側: `td-agent_${TARGET_HOST}.conf`
+- 送信側: `td-agent_sender_${TARGET_HOST}.conf`
+
+主な上書き用環境変数:
+
+- `SERVICE_SLUG_OVERRIDE` – ドメインスラッグの明示指定
+- `FORWARD_HOST` / `FORWARD_PORT` – 送信先 td-agent (既定 `172.16.161.21:24224`)
+- `POS_DIR` – ポジションファイル格納ディレクトリ (既定 `/var/log/td-agent/pos`)
+- `NGINX_LOG_DIR`, `APACHE_LOG_DIR`, `APP_LOG_DIR`, `MYSQL_LOG_DIR`, `REDIS_LOG_DIR` – ロール別ログディレクトリ
 
 サフィックスから役割を特定できないホスト名の場合は警告を出しつつ、LB/AP/DB 全ブロックを包含した設定ファイルを生成します。
 
