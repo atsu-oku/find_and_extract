@@ -49,10 +49,10 @@
 - 誤変更防止のため、`/etc/nginx/nginx.conf` および `/etc/httpd/httpd.conf` は自動処理から除外される。
 
 ```bash
-./find_and_extract.sh scan /etc
-./find_and_extract.sh transform --dry-run /etc
-./find_and_extract.sh transform --apply /var
-./find_and_extract.sh rollback --file /etc/hosts /tmp/<user>/find_and_extract/<host>_<ts>_transform.log
+./scripts/find_and_extract.sh scan /etc
+./scripts/find_and_extract.sh transform --dry-run /etc
+./scripts/find_and_extract.sh transform --apply /var
+./scripts/find_and_extract.sh rollback --file /etc/hosts /tmp/<user>/find_and_extract/<host>_<ts>_transform.log
 ```
 
 詳細なワークフローやログ構造については `FIND_AND_EXTRACT_TOOL.md` を参照してください。

@@ -11,8 +11,8 @@
 
 ## 実行形式
 ```bash
-./find_and_extract.sh [scan|transform|rollback] [オプション] <対象パス>
-./find_and_extract.sh --deletelogs
+./scripts/find_and_extract.sh [scan|transform|rollback] [オプション] <対象パス>
+./scripts/find_and_extract.sh --deletelogs
 ```
 *サブコマンド、省略時は `scan`。`--deletelogs` は単独指定。*
 
@@ -128,10 +128,10 @@
 
 ## td-agent 設定ファイル生成スクリプト
 
-環境変数 `TARGET_HOST` にホスト名（例: `line-lb01p`）を設定し、`generate_td_agent_conf.sh` を実行すると、サフィックスから役割 (`LB` / `AP` / `DB`) を判定し、対応するテンプレートをもとに td-agent 設定ファイルを生成します。
+環境変数 `TARGET_HOST` にホスト名（例: `line-lb01p`）を設定し、`scripts/generate_td_agent_conf.sh` を実行すると、サフィックスから役割 (`LB` / `AP` / `DB`) を判定し、対応するテンプレートをもとに td-agent 設定ファイルを生成します。
 
 ```bash
-TARGET_HOST="line-lb01p" ./generate_td_agent_conf.sh
+TARGET_HOST="line-lb01p" ./scripts/generate_td_agent_conf.sh
 ```
 
 出力先:
