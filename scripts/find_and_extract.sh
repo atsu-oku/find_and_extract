@@ -12,7 +12,7 @@
 ###############################################################################
 
 # --- スクリプトバージョン ---
-SCRIPT_VERSION="3.4.3.0"
+SCRIPT_VERSION="3.4.4.0"
 
 # === 出力ディレクトリを /tmp に固定 ==================================
 # スクリプト名から拡張子(.sh)を除いた部分を取得
@@ -1197,7 +1197,6 @@ function replace_stg_tokens(str, prefix, suffix, before_char, after_char, result
         print original_line
         next
     }
-    is_httpd_conf = (target_path ~ /\.conf($|\.)/ || target_path ~ /\/etc\/httpd\//)
     comment_suffix = ""
     comment_pos = index(original_line, "#")
     if (comment_pos > 0) {
@@ -1214,7 +1213,10 @@ function replace_stg_tokens(str, prefix, suffix, before_char, after_char, result
     if (line ~ /^[[:space:]]*([0-9]{1,3}\.){3}[0-9]{1,3}/ || line ~ /Hostname[[:space:]]*=/ || line ~ /PRETTY_HOSTNAME[[:space:]]*=/) {
         line = replace_stg_tokens(line)
     }
-    if (is_httpd_conf && gsub(/newstaging/, "newproduction", line) > 0) {
+    if (gsub(/newstaging/, "newproduction", line) > 0) {
+        changed = 1
+    }
+    if (gsub(/newstg/, "newprd", line) > 0) {
         changed = 1
     }
     print line comment_suffix

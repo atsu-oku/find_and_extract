@@ -82,12 +82,12 @@
 | `/etc/profile` 特例 | 対象ファイルが `/etc/profile` で、第 3 オクテットが 173 | 第 3 オクテットを `162` に置換（第 4 オクテットは保持） | `172.16.173.8` → `172.16.162.8` |
 | `0Ns` 表記 | `01s` 〜 `09s` のように `0` + 1桁の数字 + `s` が単語として現れ、直後が英数字/`_` 以外 | `s` を `p` に置換し、桁構成はそのまま維持 | `01s` → `01p` |
 | `stg` トークン | 行頭が IP で始まる行／`Hostname=`／`PRETTY_HOSTNAME=` 行に含まれる単語としての `stg` | `prd` に置換（周囲が非英数字で区切られている場合のみ） | `Hostname=web-stg` → `Hostname=web-prd` |
-| HTTPD 設定 | `/etc/httpd/` 配下または拡張子 `.conf` ファイル内の `newstaging` | `newproduction` に置換 | `SetEnv FUEL_ENV newstaging` → `SetEnv FUEL_ENV newproduction` |
+| 新STGキーワード | 行内の `newstaging` または `newstg`（コメント除外後） | それぞれ `newproduction` / `newprd` に置換 | `SetEnv FUEL_ENV newstaging` → `SetEnv FUEL_ENV newproduction` |
 
 補足:
 - IP 置換では `127.0.0.1` / `::1` で始まる行を除外。IP トークン中に数字以外が含まれる場合や 0-255 以外の値は変換対象外です。
 - `0Ns` 置換は隣接文字が英数字または `_` の場合はスキップされ、単語内部の `s` を誤変換しません。
-- 行内で対象文字列よりも前に `#` が存在する場合はコメント扱いとして置換対象から除外されます。
+- 行内で対象文字列よりも前に `#` が存在する場合はコメント扱いとして置換対象から除外されます（`newstaging` / `newstg` なども同様）。
 - `stg` 置換は `staging` や `hostname_stg1` など単語内部に埋め込まれたケースは変換されません。
 - いずれのルールでも変換が発生しなかったファイルは以降の適用フェーズに進みません。
 
