@@ -23,7 +23,7 @@ LAST_NON_EXIT_COMMAND=""
 trap 'PREVIOUS_COMMAND=$CURRENT_COMMAND; CURRENT_COMMAND=$BASH_COMMAND; if [[ "$BASH_COMMAND" != exit\ * ]]; then LAST_NON_EXIT_COMMAND=$BASH_COMMAND; fi' DEBUG
 
 # --- スクリプトバージョン ---
-SCRIPT_VERSION="3.5.0.1"
+SCRIPT_VERSION="3.5.1.0"
 
 # === 出力ディレクトリを /tmp に固定 ==================================
 # スクリプト名から拡張子(.sh)を除いた部分を取得
@@ -243,10 +243,12 @@ if [[ "$ORIGINAL_LANG" == ja_JP* ]]; then
     MSG_CONV_CONDITION_CURRENT_DESC="文字列 \"dconv\""
     MSG_IP_CONDITION_NEW_STG_DESC="IPアドレス (新STG)"
     MSG_ENV_CONDITION_NEW_STG_DESC="環境文字列 \"newstaging\""
+    MSG_LOG_CONDITION_NEW_STG_DESC="ログ行の新基盤STGキーワード"
     MSG_HOSTNAME_S_CONDITION_NEW_DESC="ホスト名サフィックス \"s\""
     MSG_TOKEN_STG_CONDITION_NEW_DESC="文字列 \"stg\""
     MSG_IP_CONDITION_NEW_PRD_DESC="IPアドレス (新PRD)"
     MSG_ENV_CONDITION_NEW_PRD_DESC="環境文字列 \"newproduction\""
+    MSG_LOG_CONDITION_NEW_PRD_DESC="ログ行の新基盤PRDキーワード"
     MSG_HOSTNAME_P_CONDITION_NEW_DESC="ホスト名サフィックス \"p\""
     MSG_HOSTNAME_GIT_CTRL_CONDITION_NEW_DESC="ホスト名 \"git\" (末尾 \"c\")"
     MSG_TOKEN_PRD_CONDITION_NEW_DESC="文字列 \"prd\""
@@ -375,10 +377,12 @@ else
     MSG_CONV_CONDITION_CURRENT_DESC="String \"dconv\""
     MSG_IP_CONDITION_NEW_STG_DESC="IP Address (New STG)"
     MSG_ENV_CONDITION_NEW_STG_DESC="Environment string \"newstaging\""
+    MSG_LOG_CONDITION_NEW_STG_DESC="Log line contains new infrastructure STG keyword"
     MSG_HOSTNAME_S_CONDITION_NEW_DESC="Hostname suffix \"s\""
     MSG_TOKEN_STG_CONDITION_NEW_DESC="Token \"stg\""
     MSG_IP_CONDITION_NEW_PRD_DESC="IP Address (New PRD)"
     MSG_ENV_CONDITION_NEW_PRD_DESC="Environment string \"newproduction\""
+    MSG_LOG_CONDITION_NEW_PRD_DESC="Log line contains new infrastructure PRD keyword"
     MSG_HOSTNAME_P_CONDITION_NEW_DESC="Hostname suffix \"p\""
     MSG_HOSTNAME_GIT_CTRL_CONDITION_NEW_DESC="Hostname \"git\" with suffix \"c\""
     MSG_TOKEN_PRD_CONDITION_NEW_DESC="Token \"prd\""
@@ -828,15 +832,18 @@ filter_grep_output() {
     local filter_type="$2"
     local lang_hit_prefix="$3"
     local production_flag=0
+    local current_env_flag=0
     if [ "$filter_type" = "production_special" ]; then
         production_flag=1
+    elif [ "$filter_type" = "current_env" ]; then
+        current_env_flag=1
     fi
     if [ -z "$input_text" ]; then
         return
     fi
 
     # awkを使ってパイプで受け取ったgrep出力を処理
-    printf '%s\n' "$input_text" | awk -v prefix="$lang_hit_prefix" -v prod_flag="$production_flag" '
+    printf '%s\n' "$input_text" | awk -v prefix="$lang_hit_prefix" -v prod_flag="$production_flag" -v current_env_flag="$current_env_flag" '
 
     # BEGINブロック: awkの処理開始前に一度だけ実行される。変数の初期化を行う。
     BEGIN { block_lines_count = 0; current_block_has_valid_hit = 0; any_valid_block_printed = 0; }
@@ -877,6 +884,11 @@ filter_grep_output() {
 
                         } else { is_formatted_as_hit = 1; }
 
+                        if (current_env_flag == 1 && is_formatted_as_hit == 1) {
+                            lcontent_env = to_lowercase(content);
+                            if (index(lcontent_env, "log") > 0) { is_formatted_as_hit = 0; }
+                        }
+
                         # ヒット行として整形して出力
                         if (is_formatted_as_hit == 1) { printf("[%s %s]:%s\n", prefix, line_num, content); }
 
@@ -910,6 +922,11 @@ filter_grep_output() {
                         if (lcontent_check ~ /production/ && lcontent_check !~ /production / && lcontent_check !~ /productions/) { current_block_has_valid_hit = 1; }
 
                     } else { current_block_has_valid_hit = 1; }
+
+                    if (current_env_flag == 1 && current_block_has_valid_hit == 1) {
+                        lcontent_check_env = to_lowercase(content_check);
+                        if (index(lcontent_check_env, "log") > 0) { current_block_has_valid_hit = 0; }
+                    }
 
                 }
 
@@ -1824,7 +1841,8 @@ new_hostname_pattern_prd="\b($(IFS='|'; echo "${hostname_patterns_prd[*]}"))\b"
 declare -A NEW_STG_CONDITIONS
 NEW_STG_CONDITIONS=(
     ["IP_new_stg"]="\\b${pattern_ip_new_stg}\\b"
-    ["ENV_new_stg"]="\\bnewstaging\\b"
+    ["ENV_new_stg"]="\\b(newstaging|newstg)\\b"
+    ["LOG_new_stg"]="(log.*(newstaging|newstg|staging)|(newstaging|newstg|staging).*log)"
     ["HOSTNAME_suffix_s"]="$new_hostname_pattern_stg"
     ["TOKEN_stg"]="\\bstg\\b"
 )
@@ -1832,13 +1850,15 @@ declare -A NEW_STG_CONDITIONS_DESC
 NEW_STG_CONDITIONS_DESC=(
     ["IP_new_stg"]="$MSG_IP_CONDITION_NEW_STG_DESC"
     ["ENV_new_stg"]="$MSG_ENV_CONDITION_NEW_STG_DESC"
+    ["LOG_new_stg"]="$MSG_LOG_CONDITION_NEW_STG_DESC"
     ["HOSTNAME_suffix_s"]="$MSG_HOSTNAME_S_CONDITION_NEW_DESC"
     ["TOKEN_stg"]="$MSG_TOKEN_STG_CONDITION_NEW_DESC"
 )
 declare -A NEW_PRD_CONDITIONS
 NEW_PRD_CONDITIONS=(
     ["IP_new_prd"]="\\b${pattern_ip_new_prd}\\b"
-    ["ENV_new_prd"]="\\bnewproduction\\b"
+    ["ENV_new_prd"]="\\b(newproduction|newprd)\\b"
+    ["LOG_new_prd"]="(log.*(newproduction|newprd|production)|(newproduction|newprd|production).*log)"
     ["HOSTNAME_suffix_p"]="$new_hostname_pattern_prd"
     ["HOSTNAME_git_ctrl"]="\\bgit0[0-9]+c\\b"
     ["TOKEN_prd"]="\\bprd\\b"
@@ -1847,6 +1867,7 @@ declare -A NEW_PRD_CONDITIONS_DESC
 NEW_PRD_CONDITIONS_DESC=(
     ["IP_new_prd"]="$MSG_IP_CONDITION_NEW_PRD_DESC"
     ["ENV_new_prd"]="$MSG_ENV_CONDITION_NEW_PRD_DESC"
+    ["LOG_new_prd"]="$MSG_LOG_CONDITION_NEW_PRD_DESC"
     ["HOSTNAME_suffix_p"]="$MSG_HOSTNAME_P_CONDITION_NEW_DESC"
     ["HOSTNAME_git_ctrl"]="$MSG_HOSTNAME_GIT_CTRL_CONDITION_NEW_DESC"
     ["TOKEN_prd"]="$MSG_TOKEN_PRD_CONDITION_NEW_DESC"
@@ -1945,6 +1966,9 @@ while IFS= read -r -d $'\0' filepath; do
         description="${CURRENT_INFRA_CONDITIONS_DESC[$condition_name]}"
         grep_options="-I -E -i -n -C 5 --color=never"
         filter_type=""
+        if [[ "$condition_name" == "ENV_current" ]]; then
+            filter_type="current_env"
+        fi
 
         # メモリ上のファイル内容に対してgrepを実行
         raw_matches=$(grep $grep_options -- "$pattern" <<<"$file_content" 2>/dev/null)
