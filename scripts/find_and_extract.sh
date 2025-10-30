@@ -1,17 +1,31 @@
 #!/usr/bin/env bash
+
 ###############################################################################
+
 #  find_and_extract.sh
+
 #
+
 #  現行基盤と新基盤(STG/PRD)に関連する定義をスキャンし、ログ出力と
+
 #  変換(TRANSFORM)・ロールバック(ROLLBACK)をサポートするメンテナンス用スクリプト。
+
 #  出力ログは current_infra / new_infra_stg / new_infra_prd / other / mixed
+
 #  の各種別で生成され、詳細は docs/FIND_AND_EXTRACT_TOOL.md を参照。
+
 #
+
 # -----------------------------------------------------------------------------
+
 #  改変履歴
+
 # -----------------------------------------------------------------------------
+
 #  バージョン履歴はリポジトリの CHANGELOG.md を参照してください。
+
 ###############################################################################
+
 # --- エラーハンドリング設定 ---
 set -o pipefail
 set -o errtrace
@@ -21,29 +35,41 @@ CURRENT_COMMAND=""
 PREVIOUS_COMMAND=""
 LAST_NON_EXIT_COMMAND=""
 trap 'PREVIOUS_COMMAND=$CURRENT_COMMAND; CURRENT_COMMAND=$BASH_COMMAND; if [[ "$BASH_COMMAND" != exit\ * ]]; then LAST_NON_EXIT_COMMAND=$BASH_COMMAND; fi' DEBUG
+
 # --- スクリプトバージョン ---
 SCRIPT_VERSION="3.5.0.0"
+
 # === 出力ディレクトリを /tmp に固定 ==================================
+
 # スクリプト名から拡張子(.sh)を除いた部分を取得
 SCRIPT_NAME_BASENAME=$(basename "$0" .sh)
+
 # 出力先を "/tmp/<ユーザー名>/<スクリプト名>" に設定。USER変数が未定義の場合は 'nobody' を使用
 OUTPUT_DIR="/tmp/${USER:-nobody}/${SCRIPT_NAME_BASENAME}"
+
 # -p オプションで、親ディレクトリが存在しない場合も再帰的に作成
 mkdir -p "${OUTPUT_DIR}" || { echo "Error: cannot create ${OUTPUT_DIR}" >&2; exit 1; }
+
 # 作成したディレクトリのパーミッションを700に設定し、所有者のみがアクセスできるようにする
 chmod 700 "${OUTPUT_DIR}" 2>/dev/null || true
+
 # ファイル読み込み時の安全基準 (10 MiB)
 MAX_ALLOWED_FILE_SIZE_BYTES=$((10 * 1024 * 1024))
 FILE_CMD_AVAILABLE=0
 if command -v file >/dev/null 2>&1; then
     FILE_CMD_AVAILABLE=1
 fi
+
 # =====================================================================
+
 # --- 初期ロケール設定と復元準備 ---
+
 # スクリプト実行前のロケール設定を退避
 ORIGINAL_LANG="${LANG:-}"
 ORIGINAL_LC_ALL="${LC_ALL:-}"
+
 # --- 一時ファイル変数 ---
+
 # スクリプト全体で使用する一時ファイルのパスを保持する変数を初期化
 CURRENT_INFRA_HITS_TEMP=""
 NEW_STG_HITS_TEMP=""
@@ -53,7 +79,9 @@ MIXED_HITS_TEMP=""
 PERMISSION_CHECK_TEST_FILE_TEMP=""
 TD_REPO_LAST_MESSAGE=""
 TD_REPO_LAST_FAILURE=0
+
 # --- 後片付け関数 ---
+
 # スクリプト終了時に呼び出され、作成した一時ファイルをすべて削除する
 cleanup() {
     rm -f "$CURRENT_INFRA_HITS_TEMP" "$NEW_STG_HITS_TEMP" \
@@ -69,17 +97,20 @@ cleanup() {
             rm -f "$diff_path" 2>/dev/null
         fi
     done
+
     # 退避しておいたロケール設定を復元
     export LANG="$ORIGINAL_LANG"
     export LC_ALL="$ORIGINAL_LC_ALL"
     CLEANUP_PERFORMED=1
 }
+
 # trapコマンドは、一時ファイルが確実に作成された後に設定する
 force_exit() {
     printf "\n%s\n" "$MSG_INTERRUPT_FORCED"
     cleanup
     exit 130
 }
+
 handle_interrupt() {
     if [ "${CANCEL_REQUESTED:-0}" -eq 0 ]; then
         CANCEL_REQUESTED=1
@@ -89,6 +120,7 @@ handle_interrupt() {
         force_exit
     fi
 }
+
 # --- エラーログ付き後処理 ---
 report_error_and_cleanup() {
     local exit_status=$?
@@ -97,6 +129,7 @@ report_error_and_cleanup() {
     trap - TERM
     if [ "$exit_status" -ne 0 ]; then
         failed_command=${CURRENT_COMMAND:-$PREVIOUS_COMMAND}
+
         if [[ "$failed_command" == exit\ * ]]; then
             if [ -n "$LAST_NON_EXIT_COMMAND" ]; then
                 failed_command=$LAST_NON_EXIT_COMMAND
@@ -115,12 +148,17 @@ report_error_and_cleanup() {
     fi
     exit "$exit_status"
 }
+
 # --- ロケール設定 ---
+
 # grepやsortの挙動を安定させるため、ロケールをC(ASCII)に設定
 export LC_ALL=C
+
 # --- 言語設定とメッセージ定義 ---
+
 # 環境変数LANGが "ja_JP" で始まる場合、メッセージを日本語に設定
 if [[ "$ORIGINAL_LANG" == ja_JP* ]]; then
+
     # 日本語メッセージ
     printf -v MSG_USAGE_LINE1_EXTENDED "使用方法:\n  %s [scan|transform|rollback] [オプション] <対象パス>\n  %s --deletelogs\n\nサブコマンド:\n  scan        現行/新基盤定義をスキャン (従来動作)\n  transform   新基盤(STG)の値をPRDに変換 (デフォルトはドライラン)\n  rollback    変換ログを基にロールバックを実行\n\n主なオプション:\n  -v, --verbose          詳細なログを表示\n  --skip-backup-files   バックアップと思われるファイルを除外\n  --dry-run             変換を出力のみで実施 (transformのデフォルト)\n  --apply               変換を実際に適用 (確認プロンプトあり)\n  --file <パス>         rollbackで指定したファイルのみ復元" "$0" "$0"
     MSG_ERROR_INVALID_OPTION="無効なオプションまたはオプションの組み合わせです。"
@@ -252,6 +290,7 @@ if [[ "$ORIGINAL_LANG" == ja_JP* ]]; then
     SEPARATOR_LINE_LONG="================================================================================"
     SEPARATOR_LINE_SHORT="--------------------------------------------------------------------------------"
 else
+
     # English Messages
     printf -v MSG_USAGE_LINE1_EXTENDED "Usage:\n  %s [scan|transform|rollback] [options] <target>\n  %s --deletelogs\n\nSubcommands:\n  scan        Scan for matching definitions (default)\n  transform   Rewrite STG values to PRD (dry-run by default)\n  rollback    Restore files using a transform log\n\nKey options:\n  -v, --verbose        Display verbose logging\n  --skip-backup-files Skip files that look like backups\n  --dry-run           Run without applying changes (transform default)\n  --apply             Apply replacements after confirmation\n  --file <path>       Limit rollback to specific files" "$0" "$0"
     MSG_ERROR_INVALID_OPTION="Invalid option or combination of options."
@@ -396,6 +435,7 @@ CANCEL_REQUESTED=0
 trap handle_interrupt INT
 trap report_error_and_cleanup EXIT
 trap report_error_and_cleanup TERM
+
 # --- オプションと引数処理 ---
 DELETE_LOGS_MODE=0
 SEARCH_PATH=""
@@ -410,6 +450,7 @@ declare -A TRANSFORM_FAILURE_MESSAGES=()
 declare -a TRANSFORM_CHANGED_FILES=()
 declare -a TRANSFORM_FAILED_FILES=()
 declare -a ROLLBACK_TARGETS=()
+
 # Bashのバージョンが4未満の場合、エラーを出力して終了
 if [[ -z "${BASH_VERSINFO[0]}" ]] || [[ "${BASH_VERSINFO[0]}" -lt "$MIN_BASH_MAJOR_VERSION" ]]; then
     current_major_version="${BASH_VERSINFO[0]:-unknown}"
@@ -433,6 +474,7 @@ if [[ $# -gt 0 ]]; then
             ;;
     esac
 fi
+
 # 引数を解析し、オプションと検索パスを分離
 declare -a remaining_args=()
 while [[ $# -gt 0 ]]; do
@@ -483,6 +525,7 @@ while [[ $# -gt 0 ]]; do
         *) remaining_args+=("$1"); shift ;;
     esac
 done
+
 # 動作モードに応じて引数のバリデーションを行う
 if [ "$SUBCOMMAND" = "rollback" ]; then
     if [ "$DELETE_LOGS_MODE" -eq 1 ]; then
@@ -499,6 +542,7 @@ if [ "$SUBCOMMAND" = "rollback" ]; then
         exit 1
     fi
 elif [ "$DELETE_LOGS_MODE" -eq 1 ]; then
+
     # 削除モードの場合、他の引数は許可しない
     if [ ${#remaining_args[@]} -ne 0 ]; then
         printf "${MSG_ERROR_PREFIX}${MSG_TOO_MANY_ARGS_OR_INVALID_COMBINATION}\n" >&2
@@ -506,6 +550,7 @@ elif [ "$DELETE_LOGS_MODE" -eq 1 ]; then
         exit 1
     fi
 else
+
     # 検索/変換モードの場合、検索パスが1つだけ指定されていることを確認
     if [ ${#remaining_args[@]} -eq 0 ]; then
         printf "${MSG_ERROR_PREFIX}${MSG_SEARCH_PATH_NOT_SPECIFIED}\n" >&2
@@ -517,6 +562,7 @@ else
         exit 1
     else
         SEARCH_PATH="${remaining_args[0]}"
+
         # 検索パスがディレクトリとして存在するか確認
         if [ ! -d "$SEARCH_PATH" ]; then
             printf "${MSG_ERROR_PREFIX}${MSG_SEARCH_PATH_NOT_EXIST_OR_DIR}" "$SEARCH_PATH" >&2
@@ -528,23 +574,29 @@ LIMIT_VAR_CONFIG=0
 if [[ "$SEARCH_PATH" == /var || "$SEARCH_PATH" == /var/ || "$SEARCH_PATH" == /var/* ]]; then
     LIMIT_VAR_CONFIG=1
 fi
+
 # --- 書き込み権限チェック関数 ---
+
 # スクリプトが出力ディレクトリに書き込み可能かを確認する
 check_write_permission() {
+
     # mktempで一時ファイルを作成できれば、書き込み権限があると判断
     PERMISSION_CHECK_TEST_FILE_TEMP=$(mktemp "${OUTPUT_DIR}/.perm_check_XXXXXX") || {
         printf "%s\n" "${MSG_ERROR_PREFIX}${MSG_ERROR_WRITE_PERMISSION_DENIED}" >&2
         exit 1
     }
+
     # 確認用のファイルはすぐに削除
     rm -f "$PERMISSION_CHECK_TEST_FILE_TEMP" 2>/dev/null
     PERMISSION_CHECK_TEST_FILE_TEMP=""
 }
+
 # --- ログ削除モードの処理 ---
 if [ "$DELETE_LOGS_MODE" -eq 1 ]; then
     printf "%s\n" "$MSG_LOG_DELETE_MODE"
     HOSTNAME_VAR=$(hostname)
     TIMESTAMP_PATTERN_GLOB="[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]_[0-9][0-9][0-9][0-9][0-9][0-9]"
+
     # 削除対象のログファイル名のパターンを定義
     LOG_PATTERN_CURRENT_GLOB="${HOSTNAME_VAR}_${TIMESTAMP_PATTERN_GLOB}_current_infra.log"
     LOG_PATTERN_NEW_STG_GLOB="${HOSTNAME_VAR}_${TIMESTAMP_PATTERN_GLOB}_new_infra_stg.log"
@@ -560,6 +612,7 @@ if [ "$DELETE_LOGS_MODE" -eq 1 ]; then
         "$LOG_PATTERN_OTHER_GLOB"
         "$LOG_PATTERN_LEGACY_NEW_GLOB"
     )
+
     # findコマンドでパターンに一致するログファイルを検索
     for glob_pattern in "${log_glob_patterns[@]}"; do
         while IFS= read -r -d '' file; do
@@ -577,6 +630,7 @@ if [ "$DELETE_LOGS_MODE" -eq 1 ]; then
     for file_to_remove in "${files_to_delete[@]}"; do
         printf "  %s\n" "$file_to_remove"
     done
+
     # ユーザーに削除の確認を求める
     read -r -p "$MSG_LOG_DELETE_CONFIRM" confirmation
     if [[ "$(echo "$confirmation" | tr '[:upper:]' '[:lower:]')" =~ ^(yes|y)$ ]]; then
@@ -594,6 +648,7 @@ if [ "$DELETE_LOGS_MODE" -eq 1 ]; then
     exit 0
 fi
 if [ "$SUBCOMMAND" = "scan" ] || [ "$DELETE_LOGS_MODE" -ne 0 ]; then
+
 # --- 通常実行時の初期化 ---
 check_write_permission
 HOSTNAME_VAR=$(hostname)
@@ -604,15 +659,19 @@ NEW_STG_OUTPUT_FILE="${OUTPUT_DIR}/${HOSTNAME_VAR}_${CURRENT_TIMESTAMP_FOR_FILEN
 NEW_PRD_OUTPUT_FILE="${OUTPUT_DIR}/${HOSTNAME_VAR}_${CURRENT_TIMESTAMP_FOR_FILENAME}_new_infra_prd.log"
 OTHER_OUTPUT_FILE="${OUTPUT_DIR}/${HOSTNAME_VAR}_${CURRENT_TIMESTAMP_FOR_FILENAME}_other.log"
 MIXED_OUTPUT_FILE="${OUTPUT_DIR}/${HOSTNAME_VAR}_${CURRENT_TIMESTAMP_FOR_FILENAME}_mixed.log"
+
 # ログファイルを空の状態で作成
 : > "$CURRENT_INFRA_OUTPUT_FILE"
 : > "$NEW_STG_OUTPUT_FILE"
 : > "$NEW_PRD_OUTPUT_FILE"
 : > "$OTHER_OUTPUT_FILE"
 : > "$MIXED_OUTPUT_FILE"
+
 # --- ヘッダー生成と出力 ---
+
 # スクリプトの基本情報をヘッダー文字列として一度だけ生成する
 script_name=$(basename "$0")
+
 # printfの-vオプション(bash 4+)で、フォーマットされた文字列を変数に格納する
 printf -v header_info "\n%s\n%s %s\n%s %s\n%s %s\n%s %s\n----------------------------------------\n" \
     "${MSG_SCRIPT_INFO_HEADER}" \
@@ -620,31 +679,44 @@ printf -v header_info "\n%s\n%s %s\n%s %s\n%s %s\n%s %s\n-----------------------
     "${MSG_SCRIPT_NAME_LABEL}" "$script_name" \
     "${MSG_SCRIPT_VERSION_LABEL}" "$SCRIPT_VERSION" \
     "${MSG_EXECUTION_DATETIME_LABEL}" "$CURRENT_DATETIME_FOR_LOG"
+
 # 標準出力にヘッダーを表示
 printf "%s" "$header_info"
+
 # 各ログファイルにヘッダーを書き込む (リダイレクトは上書きの'>'で良い)
 printf "%s" "$header_info" > "$CURRENT_INFRA_OUTPUT_FILE"
 printf "%s" "$header_info" > "$NEW_STG_OUTPUT_FILE"
 printf "%s" "$header_info" > "$NEW_PRD_OUTPUT_FILE"
 printf "%s" "$header_info" > "$OTHER_OUTPUT_FILE"
 printf "%s" "$header_info" > "$MIXED_OUTPUT_FILE"
+
 # --- 一時ファイル作成 ---
 CURRENT_INFRA_HITS_TEMP=$(mktemp) || { printf "${MSG_ERROR_PREFIX}${MSG_TEMP_FILE_CREATION_FAILED}" "CURRENT_INFRA_HITS_TEMP" >&2; exit 1; }
+
 NEW_STG_HITS_TEMP=$(mktemp) || { cleanup; printf "${MSG_ERROR_PREFIX}${MSG_TEMP_FILE_CREATION_FAILED}" "NEW_STG_HITS_TEMP" >&2; exit 1; }
+
 NEW_PRD_HITS_TEMP=$(mktemp) || { cleanup; printf "${MSG_ERROR_PREFIX}${MSG_TEMP_FILE_CREATION_FAILED}" "NEW_PRD_HITS_TEMP" >&2; exit 1; }
+
 OTHER_HITS_TEMP=$(mktemp) || { cleanup; printf "${MSG_ERROR_PREFIX}${MSG_TEMP_FILE_CREATION_FAILED}" "OTHER_HITS_TEMP" >&2; exit 1; }
+
 MIXED_HITS_TEMP=$(mktemp) || { cleanup; printf "${MSG_ERROR_PREFIX}${MSG_TEMP_FILE_CREATION_FAILED}" "MIXED_HITS_TEMP" >&2; exit 1; }
+
 # --- 実行開始メッセージ ---
 printf "%s\n" "$MSG_SEARCH_START"
 printf "${MSG_SEARCH_PATH_LABEL}%s\n" "$SEARCH_PATH"
 printf "${MSG_LOG_GENERATED_LOCATION}\n"
 fi
+
 # --- ヘルパー関数の事前定義 ---
+
 # --- is_backup_file_name: ファイル名がバックアップファイルか判定 ---
+
 # 引数: ファイル名
+
 # 戻り値: バックアップファイルなら0(成功)、そうでなければ1(失敗)
 is_backup_file_name() {
     local filename="$1"
+
     # 正規表現で、.bak, .old, ~, .swp, タイムスタンプなどのパターンに一致するか確認
     if [[ "$filename" =~ \.bak$ || "$filename" =~ \.old$ || "$filename" =~ ~$ || "$filename" =~ \.swp$ || "$filename" =~ \.swo$ || "$filename" =~ [._][0-9]{8}_[0-9]{6}(\..*)?$ || "$filename" =~ [._][0-9]{8}_[0-9]{4}\.bak$ || "$filename" =~ [._][0-9]{8}(\..*)?$ || "$filename" =~ [._-][Bb][Kk](\..*)?$ || "$filename" =~ \#[0-9]+\#$ || "$filename" =~ ^\.# || "$filename" =~ \.[0-9]{8}_[0-9]{6}$ || "$filename" =~ \.[0-9]{8}$ ]]; then
         return 0 # true (バックアップファイル)
@@ -652,8 +724,11 @@ is_backup_file_name() {
         return 1 # false
     fi
 }
+
 # --- should_skip_file_for_processing: バイナリまたはサイズ超過ファイルを判定 ---
+
 # 引数: ファイルパス
+
 # 戻り値: スキップする場合は0、処理可能なら1
 should_skip_file_for_processing() {
     local filepath="$1"
@@ -681,6 +756,7 @@ should_skip_file_for_processing() {
     fi
     return 1
 }
+
 write_td_repo_content() {
     local output_path="$1"
     local series="$2"
@@ -692,6 +768,7 @@ gpgcheck=1
 gpgkey=https://packages.treasuredata.com/GPG-KEY-td-agent
 EOF
 }
+
 check_and_adjust_td_repo_temp() {
     local temp_file="$1"
     local curl_bin=""
@@ -721,6 +798,7 @@ check_and_adjust_td_repo_temp() {
     url_v4="https://packages.treasuredata.com/4/redhat/${releasever}/${basearch}"
     url_v3="https://packages.treasuredata.com/3/redhat/${releasever}/${basearch}"
     if "$curl_bin" --silent --location --fail --head --max-time 10 "${url_v4}/${probe_path}" >/dev/null 2>&1; then
+
         # v4 reachable
         return 0
     fi
@@ -734,8 +812,11 @@ check_and_adjust_td_repo_temp() {
     TD_REPO_LAST_FAILURE=1
     return 2
 }
+
 # --- filter_grep_output: grepの出力を整形・フィルタリング ---
+
 # コメント行(#)を除外し、ヒット行にプレフィックスを付けるなどの処理を行う
+
 # 引数1: grepの生出力, 引数2: 特殊フィルタタイプ, 引数3: ヒット行のプレフィックス
 filter_grep_output() {
     local input_text="$1"
@@ -748,51 +829,73 @@ filter_grep_output() {
     if [ -z "$input_text" ]; then
         return
     fi
+
     # awkを使ってパイプで受け取ったgrep出力を処理
     printf '%s\n' "$input_text" | awk -v prefix="$lang_hit_prefix" -v prod_flag="$production_flag" '
+
     # BEGINブロック: awkの処理開始前に一度だけ実行される。変数の初期化を行う。
     BEGIN { block_lines_count = 0; current_block_has_valid_hit = 0; any_valid_block_printed = 0; }
+
     # 小文字変換用の関数
     function to_lowercase(s) { return tolower(s); }
+
     # grep -C の区切り文字"--"が来たときに、保持していたブロックを出力する関数
     function print_current_block() {
+
         # 有効なヒット行がブロック内に存在する場合のみ出力
         if (current_block_has_valid_hit == 1 && block_lines_count > 0) {
+
             # 2つ目以降のブロックの場合、見やすくするために区切り線を出力
             if (any_valid_block_printed == 1) {
                 if (block_lines_count > 0 && last_block_was_empty == 0) { print ""; print "--"; print ""; }
+
                 else if (block_lines_count > 0) { print "--"; }
+
             }
+
             # ブロック内の各行を処理
             for (i = 1; i <= block_lines_count; i++) {
                 line = block_lines[i]
+
                 # grep -n の出力形式 (行番号:内容 or 行番号-内容) に一致するかチェック
                 if (match(line, /^([0-9]+)([:-])(.*)$/, arr)) {
                     line_num = arr[1]; sep = arr[2]; content = arr[3];
+
                     # ヒット行(:)であり、かつコメント行(#)でない場合
                     if (sep == ":" && content !~ /^[[:space:]]*#/) {
                         is_formatted_as_hit = 0;
+
                         # "production" の特別フィルタリング
                         if (prod_flag == 1) {
                             lcontent = to_lowercase(content);
                             if (lcontent ~ /production/ && lcontent !~ /production / && lcontent !~ /productions/) { is_formatted_as_hit = 1; }
+
                         } else { is_formatted_as_hit = 1; }
+
                         # ヒット行として整形して出力
                         if (is_formatted_as_hit == 1) { printf("[%s %s]:%s\n", prefix, line_num, content); }
+
                         else { print line; }
+
                     } else { print line; } # コンテキスト行(-)やコメント行はそのまま出力
+
                 } else { print line; } # 行番号がない行もそのまま出力
+
             }
+
             any_valid_block_printed = 1; last_block_was_empty = 0;
         } else { last_block_was_empty = 1; }
+
         # 次のブロックのために変数をリセット
         block_lines_count = 0; current_block_has_valid_hit = 0;
     }
+
     # メインの処理ブロック: 1行ずつ読み込んで処理
     {
         if ($0 == "--") { print_current_block(); } # 区切り行が来たらブロックを出力
         else {
             block_lines[++block_lines_count] = $0; # 行をブロックに溜める
+
             # ヒット行(:)かつ非コメント行かを確認し、フラグを立てる
             if (match($0, /^([0-9]+):(.*)$/, arr_check)) {
                 content_check = arr_check[2];
@@ -800,48 +903,66 @@ filter_grep_output() {
                     if (prod_flag == 1) {
                         lcontent_check = to_lowercase(content_check);
                         if (lcontent_check ~ /production/ && lcontent_check !~ /production / && lcontent_check !~ /productions/) { current_block_has_valid_hit = 1; }
+
                     } else { current_block_has_valid_hit = 1; }
+
                 }
+
             }
+
         }
+
     }
+
     # ENDブロック: 全ての行を読み終わった後に実行される。最後のブロックを出力する。
     END { print_current_block(); }'
 }
+
 # --- IPアドレス検証用ヘルパー関数群 ---
+
 # is_valid_octet: 1つのオクテット(0-255)が有効か検証
 is_valid_octet() {
     local octet=$1
+
     # 数字のみで構成され、0-255の範囲内か
     if ! [[ "$octet" =~ ^[0-9]+$ ]] || (( octet < 0 || octet > 255 )); then return 1; fi
+
     # "01"のような先行ゼロを許可しない (ただし"0"は許可)
     if [[ "$octet" =~ ^0[0-9]+$ ]]; then return 1; fi
     return 0
 }
+
 # is_valid_ip: IPアドレス文字列全体が有効か検証
 is_valid_ip() {
     local ip=$1; local ifs_bak=$IFS; IFS='.'; local -a octets=(); read -r -a octets <<< "$ip"; IFS=$ifs_bak
+
     # ドットで4つの部分に分かれているか
     if [[ ${#octets[@]} -ne 4 ]]; then return 1; fi
+
     # 各オクテットが有効かチェック
     for octet in "${octets[@]}"; do if ! is_valid_octet "$octet"; then return 1; fi; done
     return 0
 }
+
 # check_for_invalid_ips: ファイル内の不正フォーマットIPを検出しエラー表示
 check_for_invalid_ips() {
     local filepath="$1"; local content="$2"
+
     # grep -o でIPアドレスのような文字列だけを抜き出す
     grep -n -o -E '[0-9]{1,3}(\.[0-9]{1,3}){3}' <<< "$content" | while IFS=: read -r line_num potential_ip; do
+
         # 抜き出した文字列が有効なIPアドレスか検証
         if ! is_valid_ip "$potential_ip"; then
             printf "${MSG_ERROR_PREFIX}${MSG_ERROR_INVALID_IP_FORMAT}" "$filepath" "$line_num" "$potential_ip" >&2
         fi
     done
 }
+
 # --- print_filtered_hit_list: サマリー用のファイルリストを出力 ---
 print_filtered_hit_list() {
     local temp_hit_file="$1"; local items_actually_printed=0
     if [ ! -f "$temp_hit_file" ] || [ ! -s "$temp_hit_file" ]; then printf "%s\n" "$MSG_NO_HITS"; return; fi
+
     # mapfile(readarray)でファイル内容を配列に読み込み、sort -u で重複を除外
     declare -a sorted_hit_files=(); mapfile -t sorted_hit_files < <(sort -u "$temp_hit_file")
     if [ ${#sorted_hit_files[@]} -eq 0 ]; then printf "%s\n" "$MSG_NO_HITS"; return; fi
@@ -852,6 +973,7 @@ print_filtered_hit_list() {
     done
     if [ "$items_actually_printed" -eq 0 ]; then printf "%s\n" "$MSG_NO_HITS"; fi
 }
+
 print_diff_section() {
     local diff_file="$1"
     local mode="$2"
@@ -865,8 +987,11 @@ print_diff_section() {
     fi
     awk -v pref="$prefix" '
         /^--- / {next}
+
         /^\+\+\+/ {next}
+
         /^@@/ {current_header=$0; header_pending=1; next}
+
         {
             first_char = substr($0, 1, 1)
             second_char = substr($0, 2, 1)
@@ -875,25 +1000,34 @@ print_diff_section() {
                     printed_any = 1
                     section_count = 1
                 } else {
+
                     section_count++
                 }
+
                 if (header_pending && current_header != "") {
                     if (section_count > 1) {
                         print ""
                     }
+
                     print current_header
                     header_pending = 0
                 }
+
                 print "  " substr($0, 2)
             }
+
         }
+
         END {
             if (!printed_any) {
                 print "  (no changes)"
             }
+
         }
+
     ' "$diff_file"
 }
+
 emit_preview_block() {
     local file_path="$1"
     local diff_file="$2"
@@ -904,16 +1038,19 @@ emit_preview_block() {
     print_diff_section "$diff_file" "new"
     printf "\n"
 }
+
 # --- print_detailed_other_hits: 「その他条件」のサマリーを詳細に出力 ---
 print_detailed_other_hits() {
     local temp_hit_file="$1"
     if [ ! -f "$temp_hit_file" ] || [ ! -s "$temp_hit_file" ]; then return; fi
+
     # 連想配列を使い、ヒットした条件ごとにファイルパスをまとめる
     declare -A hits_by_condition
     while IFS=: read -r condition_name filepath; do
         hits_by_condition["$condition_name"]+="${filepath}"$'\n'
     done < <(sort "$temp_hit_file")
     if [ ${#hits_by_condition[@]} -eq 0 ]; then return; fi
+
     # 条件ごとにループし、ファイルリストを出力
     for condition_name in "${!hits_by_condition[@]}"; do
         mapfile -t files < <(printf '%s' "${hits_by_condition[$condition_name]}" | sort -u)
@@ -927,11 +1064,13 @@ print_detailed_other_hits() {
         fi
     done
 }
+
 # Override with simplified implementation to avoid deprecated dependencies.
 print_detailed_other_hits() {
     : "${1}"
     return 0
 }
+
 # --- print_both_logs_hit_list: 両方のログにヒットしたファイルリストを出力 ---
 print_both_logs_hit_list() {
     local temp_hit_file="$1"; local items_actually_printed=0
@@ -942,6 +1081,7 @@ print_both_logs_hit_list() {
     done < "$temp_hit_file"
     if [ "$items_actually_printed" -eq 0 ]; then printf "%s\n" "$MSG_NO_HITS"; fi
 }
+
 check_newproduction_structure() {
     local base_dir="/var/www/com/ipet-ins"
     local system_dir=""
@@ -982,6 +1122,7 @@ check_newproduction_structure() {
     fi
     return 0
 }
+
 run_transform() {
     printf "%s\n" "$MSG_TRANSFORM_MODE_HEADER"
     if [ "$TRANSFORM_DRY_RUN" -eq 1 ]; then
@@ -1041,6 +1182,7 @@ run_transform() {
                 printf "${MSG_ERROR_PREFIX}${MSG_TEMP_FILE_CREATION_FAILED}" "transform" >&2
                 return 1
             }
+
             write_td_repo_content "$temp_transformed" "4"
             total_files_scanned_transform=$((total_files_scanned_transform + 1))
             if cmp -s "$filepath" "$temp_transformed" 2>/dev/null; then
@@ -1088,11 +1230,13 @@ run_transform() {
             printf "${MSG_ERROR_PREFIX}${MSG_TEMP_FILE_CREATION_FAILED}" "transform" >&2
             return 1
         }
+
         transform_output=$(awk -v target_path="$filepath" -f - "$filepath" > "$temp_transformed" 2>&1 <<'AWK'
 BEGIN {
     ip_regex = "[0-9]{1,3}(\\.[0-9]{1,3}){3}(/[0-9]{1,2})?"
     changed = 0
 }
+
 function convert_ip(token, arr, base, suffix, i) {
     suffix = ""
     if (token ~ /\//) {
@@ -1100,33 +1244,42 @@ function convert_ip(token, arr, base, suffix, i) {
         base = arr[1]
         suffix = "/" arr[2]
     } else {
+
         base = token
     }
+
     split(base, arr, ".")
     if (length(arr) != 4) {
         return token
     }
+
     for (i = 1; i <= 4; i++) {
         if (arr[i] !~ /^[0-9]+$/) {
             return token
         }
+
         arr[i] += 0
         if (arr[i] < 0 || arr[i] > 255) {
             return token
         }
+
     }
+
     if (target_path == "/etc/profile" && arr[1] == 172 && arr[2] == 16 && arr[3] == 173) {
         arr[3] = 162
         changed = 1
         return arr[1] "." arr[2] "." arr[3] "." arr[4] suffix
     }
+
     if (arr[3] >= 170 && arr[3] <= 179) {
         arr[3] -= 10
         changed = 1
         return arr[1] "." arr[2] "." arr[3] "." arr[4] suffix
     }
+
     return token
 }
+
 function rebuild_with_ip(str, rem, result, prefix, token, converted) {
     rem = str
     result = ""
@@ -1139,9 +1292,12 @@ function rebuild_with_ip(str, rem, result, prefix, token, converted) {
         if (converted != token) {
             changed = 1
         }
+
     }
+
     return result rem
 }
+
 function replace_zero_ns(str, rem, result, prefix, next_char, matched) {
     rem = str
     result = ""
@@ -1153,13 +1309,16 @@ function replace_zero_ns(str, rem, result, prefix, next_char, matched) {
             rem = substr(rem, RSTART + RLENGTH)
             continue
         }
+
         matched = substr(rem, RSTART, RLENGTH)
         result = result prefix substr(matched, 1, RLENGTH - 1) "p"
         rem = substr(rem, RSTART + RLENGTH)
         changed = 1
     }
+
     return result rem
 }
+
 function replace_stg_tokens(str, prefix, suffix, before_char, after_char, result) {
     result = ""
     while (match(str, /stg/)) {
@@ -1172,12 +1331,16 @@ function replace_stg_tokens(str, prefix, suffix, before_char, after_char, result
             str = suffix
             changed = 1
         } else {
+
             result = result prefix substr(str, RSTART, RLENGTH)
             str = suffix
         }
+
     }
+
     return result str
 }
+
 {
     original_line = $0
     comment_suffix = ""
@@ -1186,30 +1349,39 @@ function replace_stg_tokens(str, prefix, suffix, before_char, after_char, result
         line = substr(original_line, 1, comment_pos - 1)
         comment_suffix = substr(original_line, comment_pos)
     } else {
+
         line = original_line
     }
+
     line = rebuild_with_ip(line)
     updated = replace_zero_ns(line)
     if (updated != line) {
         line = updated
     }
+
     if (line ~ /^[[:space:]]*([0-9]{1,3}\.){3}[0-9]{1,3}/ || line ~ /Hostname[[:space:]]*=/ || line ~ /PRETTY_HOSTNAME[[:space:]]*=/) {
         line = replace_stg_tokens(line)
     }
+
     if (gsub(/newstaging/, "newproduction", line) > 0) {
         changed = 1
     }
+
     if (gsub(/newstg/, "newprd", line) > 0) {
         changed = 1
     }
+
     print line comment_suffix
 }
+
 END {
     if (changed) {
         exit 0
     }
+
     exit 3
 }
+
 AWK
         )
         status=$?
@@ -1222,13 +1394,16 @@ AWK
                 diff -u "$filepath" "$temp_transformed" > "$diff_file" 2>/dev/null
                 diff_status=$?
                 if [ $diff_status -eq 0 ]; then
+
                     # No differences; discard diff file.
                     rm -f "$diff_file" 2>/dev/null
                     TRANSFORM_DIFF_PATHS["$filepath"]=""
                 elif [ $diff_status -eq 1 ]; then
+
                     # Differences captured successfully.
                     TRANSFORM_DIFF_PATHS["$filepath"]="$diff_file"
                 else
+
                     # Error generating diff.
                     rm -f "$diff_file" 2>/dev/null
                     TRANSFORM_DIFF_PATHS["$filepath"]=""
@@ -1284,6 +1459,7 @@ AWK
         printf "# Dry-run: %s\n" "$([ "$TRANSFORM_DRY_RUN" -eq 1 ] && echo yes || echo no)"
         printf "# Target: %s\n\n" "$SEARCH_PATH"
     } > "$transform_diff_log"; then
+
         transform_diff_log=""
     else
         chmod 600 "$transform_diff_log" 2>/dev/null || true
@@ -1455,6 +1631,7 @@ AWK
     fi
     return 1
 }
+
 run_rollback() {
     local log_file="$SEARCH_PATH"
     local restored_count=0
@@ -1535,6 +1712,7 @@ run_rollback() {
     fi
     return 0
 }
+
 if [ "$SUBCOMMAND" = "transform" ] && [ "$DELETE_LOGS_MODE" -eq 0 ]; then
     run_transform
     exit $?
@@ -1543,9 +1721,12 @@ if [ "$SUBCOMMAND" = "rollback" ]; then
     run_rollback
     exit $?
 fi
+
 # === 検索条件の定義 =================================
+
 # --- 現行基盤の定義 ---
 declare -A CURRENT_INFRA_CONDITIONS
+
 # 現行基盤のIPアドレス範囲
 pattern_ip_100_100_main='100\.100\.([0-9]{1,3})\.([0-9]{1,3})'
 pattern_ip_172_16_slash17_main="172\.16\.(12[0-7]|1[01][0-9]|[0-9]?[0-9])\.([0-9]{1,3})"
@@ -1563,10 +1744,13 @@ pattern_ip_regional_1='192\.168\.44\.([0-9]{1,3})'
 pattern_ip_regional_2='192\.168\.172\.([0-9]{1,3})'
 pattern_ip_regional_3='192\.168\.33\.([0-9]{1,3})'
 pattern_ip_infra='192\.168\.174\.([0-9]{1,3})'
+
 # 現行基盤のホスト名パターンを配列で定義
 hostname_patterns_main=( 'ipetdchq2nd001' 'ipetdc00[12]' 'iptad(?:con001|aud01|mg02)' 'ipetad011(?:_.*)?' 'ipetbkserv00[24]' 'iptpavm0[1245]' 'iptpdns0[12]' '(?:dapp|linp|evep|srmp|mulp|clbp|dlagp|ndpp|pswp|pnrp|mypp|vmap|psop|agcp|vmpp|pfts|crmp|ansp|dwap|dlip|dolp|anap)(?:ap|db|lb)[0-9]{2,}' 'c[a-z]{2,}[0-9]{3}p' '(?:ceset|piifs|niafs|astjb|bstar|confl|cdesk|cdocs|biz|dmp|xdp|ltt|dwa|elk|cesrs|euc|rst|ifo|infox|pbs|cpmve|cprxy|creps|cscgv|shptd|ptl|adssp|appsc|csmtp|clicw|crpmg|kzk|clpas|cndsm|eucpc|kddfs|kmsds|pep|stogw|uilai|uilam)[a-z0-9]*[0-9]{2,}[sp]' 'c(jkns|bgip|fmdw|fmdl|fubi|batc)[0-9]{2,}[sp]' 'cv(csa|rom)[a-z0-9]*[0-9]{2,}[sp]' 'czbbx[0-9]{2,}[sp]' 'iptp(?:eset|hul|if|ci|mi|rm|bp|fs|bk|om|ml|log)[a-z0-9]*' '(?:eik|ndp)pci[0-9]{2,}' '(?:gvrp|drip)lb[0-9]{2,}' 'frntsb[0-9]{2,}' 'dmppts[0-9]{2,}' 'iptdec00[239]' 'ipet-link[0-9]{2,}' 'suppap[0-9]{2,}' 'ipt(?:dsm|ome|vddk|ss|sdpls|pxypac|sdz|ness)[a-z0-9]*' 'welcome-db(?:02)?\.ipet-ins\.com' 'welcome\.ipet-ins\.com' 'TESTDEPLOY' 'mailman' 'ipet-contact' 'ipet-marketing-wiki' 'lb-act' 'iptwork[0-9]{2,}' 'cbtrustvc[0-9]{3,}' 'TEMP_Win10' 'dmp(?:pmb|pci|plb|pap|dts)[0-9]+' '(?:dmp|ltt|biz)(?:p?db|p?ap)[0-9]+' )
+
 # 配列の要素を'|'で結合して、grepで使える単一の正規表現パターンを生成
 new_hostname_pattern_main="\b($(IFS='|'; echo "${hostname_patterns_main[*]}"))\b"
+
 # 連想配列に、条件名と正規表現パターンを格納
 CURRENT_INFRA_CONDITIONS=(
     ["IP_current"]="\\b(${pattern_ip_100_100_main}|${pattern_ip_172_16_slash17_main}|${pattern_ip_172_specific_main}|${pattern_ip_hb_1}|${pattern_ip_hb_2})\\b"
@@ -1576,6 +1760,7 @@ CURRENT_INFRA_CONDITIONS=(
     ["PFS_current"]='pfs0[1-2]'
     ["DCONV_current"]='dconv'
 )
+
 # 各条件の説明文を連想配列に格納
 declare -A CURRENT_INFRA_CONDITIONS_DESC
 CURRENT_INFRA_CONDITIONS_DESC=(
@@ -1586,7 +1771,9 @@ CURRENT_INFRA_CONDITIONS_DESC=(
     ["PFS_current"]="$MSG_PFS_CONDITION_CURRENT_DESC"
     ["DCONV_current"]="$MSG_CONV_CONDITION_CURRENT_DESC"
 )
+
 # --- 新基盤の定義 ---
+
 # 新基盤のホスト名パターンを配列で定義
 hostname_patterns_new_base=( '(?:line|event|mul|psweb|petname|recept|iposco|crm)-(?:lb|ap|db)[0-9]+[sp]' 'XXX-(?:ap|db|lb)[0-9]+[sp]' 'ipet-lb[0-9]+[sp]' 'ipetclub-(?:lb|ap|db)[0-9]+[sp]' 'dlagency-(?:lb|ap|db)[0-9]+[sp]' 'agency-(?:lb|ap|db)[0-9]+[sp]' 'epc(?:ds)?[0-9]+[sp]' 'docomo-(?:lb|ap|db)[0-9]+[sp]' 'ipet-(?:fs|bk)[0-9]+[sp]' 'sdp[0-9]+[sp]' 'myp-(?:ap|db)[0-9]+[sp]' 'smtp[0-9]+[sp]' 'mailman-ap[0-9]+[sp]' 'log[0-9]+[sp]' 'wel-(?:ap|db)[0-9]+[sp]' 'inext-(?:ap|db)[0-9]+[sp]' '(?:grafana|metabase)[0-9]+p' 'tableau0[0-9]+p' 'proxy[0-9]+[sp]' 'asteria-ap[0-9]+[sp]' 'infoone-(?:doc|ap)[0-9]+[sp]' 'biz-(?:ap|db)[0-9]+[sp]' 'dmp-(?:ap|ci|lb|mb)[0-9]+[sp]' 'xdp-(?:ap|conv|db)[0-9]+[sp]' 'ltt-(?:ap|db)[0-9]+[sp]' 'dwa-db[0-9]+[sp]' 'jenkins[0-9]+[sp]' '(?:bigip|repos|zabbix|scansv|pmp)[0-9]+[sp]' 'report-(?:ap|db)[0-9]+[sp]' 'jumpw[0-9]+[sp]' 'jumpl[0-9]+[sp]' 'fubi-db[0-9]+[sp]' 'bat[0-9]+[sp]' 'dwhapi-(?:ap|db)[0-9]+[sp]' '(?:eset|hulft|iFilter)[0-9]+[sp]' 'deploy[0-9]+[sp]' 'ifo-je-ap[0-9]+[sp](?:vm)?' 'jobarg[0-9]+' '[a-z0-9]+-(?:lb|ap|db|fs|bk|conv|ci|mb)[0-9]+[sp]' )
 declare -a hostname_patterns_stg=()
@@ -1668,7 +1855,9 @@ OTHER_CONDITIONS_DESC=(
     ["CONV0_new"]="$MSG_CONV_CONDITION_NEW_DESC"
     ["IPETFS_new"]="$MSG_IPETFS_CONDITION_NEW_DESC"
 )
+
 # =====================================================================
+
 # --- メイン処理 ---
 TOTAL_FILES_SCANNED=0
 declare -A current_infra_hits_written
@@ -1677,7 +1866,9 @@ declare -A new_prd_hits_written
 declare -A other_hits_written
 declare -A mixed_hits_written
 SECONDS=0
+
 # findコマンドでスキャン対象ファイルをリストアップし、whileループで1ファイルずつ処理
+
 # findの-print0とreadの-d $'\0' を使うことで、ファイル名にスペースや特殊文字が含まれていても安全に扱える
 while IFS= read -r -d $'\0' filepath; do
     if [ "$CANCEL_REQUESTED" -ne 0 ]; then
@@ -1711,12 +1902,16 @@ while IFS= read -r -d $'\0' filepath; do
         fi
         continue
     fi
+
     # パフォーマンス向上のため、ファイル内容を一度だけメモリ上の配列に読み込む
     IFS= readarray -t file_lines < "$filepath" || continue
+
     # 配列を改行区切りの単一の文字列変数に変換
     file_content=$(printf '%s\n' "${file_lines[@]}")
+
     # ファイル内の不正なIPアドレスフォーマットをチェック
     check_for_invalid_ips "$filepath" "$file_content"
+
     # バックアップファイルスキップオプションが有効な場合、バックアップファイルをスキップ
     if [ "$SKIP_BACKUP_FILES_MODE" -eq 1 ] && is_backup_file_name "$(basename "$filepath")"; then
         if [ "$VERBOSE_MODE" -eq 1 ]; then printf "%s%s\n" "${MSG_VERBOSE_PREFIX}" "${MSG_VERBOSE_SKIPPING_BACKUP_FILE}$filepath"; fi
@@ -1725,12 +1920,14 @@ while IFS= read -r -d $'\0' filepath; do
     if [ "$VERBOSE_MODE" -eq 1 ]; then printf "%s%s\n" "${MSG_VERBOSE_PREFIX}" "${MSG_VERBOSE_SCANNING_FILE}$filepath"; fi
     current_infra_log_header_printed=0
     current_infra_match_found=0
+
     # === 現行基盤定義の検索ループ ===
     for condition_name in "${!CURRENT_INFRA_CONDITIONS[@]}"; do
         pattern="${CURRENT_INFRA_CONDITIONS[$condition_name]}"
         description="${CURRENT_INFRA_CONDITIONS_DESC[$condition_name]}"
         grep_options="-I -E -i -n -C 5 --color=never"
         filter_type=""
+
         # メモリ上のファイル内容に対してgrepを実行
         raw_matches=$(grep $grep_options -- "$pattern" <<<"$file_content" 2>/dev/null)
         filtered_matches=$(filter_grep_output "$raw_matches" "$filter_type" "$MSG_HIT_LINE_PREFIX")
@@ -1865,11 +2062,13 @@ while IFS= read -r -d $'\0' filepath; do
         fi
     fi
 done < <(find "$SEARCH_PATH" -path '*/selinux/*' -prune -o -type f -not -name '*#*' -print0)
+
 # 中断要求があった場合は処理を終了
 if [ "$CANCEL_REQUESTED" -ne 0 ]; then
     printf "%s\n" "$MSG_OPERATION_CANCELLED"
     exit 130
 fi
+
 # --- 実行結果のサマリー表示 ---
 printf -- "\n%s\n" "$SEPARATOR_LINE_SHORT"
 printf "%s\n" "$MSG_SEARCH_COMPLETED_PRIMARY"
@@ -1891,5 +2090,5 @@ print_filtered_hit_list "$OTHER_HITS_TEMP"
 printf "\n%s\n" "$MSG_MIXED_HITS_HEADER"
 print_filtered_hit_list "$MIXED_HITS_TEMP"
 printf "\n処理にかかった時間: %d 秒\n" "$SECONDS"
-# End of script
 
+# End of script
