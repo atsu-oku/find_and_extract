@@ -1,31 +1,17 @@
 #!/usr/bin/env bash
-
 ###############################################################################
-
 #  find_and_extract.sh
-
 #
-
 #  現行基盤と新基盤(STG/PRD)に関連する定義をスキャンし、ログ出力と
-
 #  変換(TRANSFORM)・ロールバック(ROLLBACK)をサポートするメンテナンス用スクリプト。
-
 #  出力ログは current_infra / new_infra_stg / new_infra_prd / other / mixed
-
 #  の各種別で生成され、詳細は docs/FIND_AND_EXTRACT_TOOL.md を参照。
-
 #
-
 # -----------------------------------------------------------------------------
-
 #  改変履歴
-
 # -----------------------------------------------------------------------------
-
 #  バージョン履歴はリポジトリの CHANGELOG.md を参照してください。
-
 ###############################################################################
-
 # --- エラーハンドリング設定 ---
 set -o pipefail
 set -o errtrace
@@ -40,7 +26,6 @@ trap 'PREVIOUS_COMMAND=$CURRENT_COMMAND; CURRENT_COMMAND=$BASH_COMMAND; if [[ "$
 SCRIPT_VERSION="3.5.0.0"
 
 # === 出力ディレクトリを /tmp に固定 ==================================
-
 # スクリプト名から拡張子(.sh)を除いた部分を取得
 SCRIPT_NAME_BASENAME=$(basename "$0" .sh)
 
@@ -61,15 +46,12 @@ if command -v file >/dev/null 2>&1; then
 fi
 
 # =====================================================================
-
 # --- 初期ロケール設定と復元準備 ---
-
 # スクリプト実行前のロケール設定を退避
 ORIGINAL_LANG="${LANG:-}"
 ORIGINAL_LC_ALL="${LC_ALL:-}"
 
 # --- 一時ファイル変数 ---
-
 # スクリプト全体で使用する一時ファイルのパスを保持する変数を初期化
 CURRENT_INFRA_HITS_TEMP=""
 NEW_STG_HITS_TEMP=""
@@ -81,7 +63,6 @@ TD_REPO_LAST_MESSAGE=""
 TD_REPO_LAST_FAILURE=0
 
 # --- 後片付け関数 ---
-
 # スクリプト終了時に呼び出され、作成した一時ファイルをすべて削除する
 cleanup() {
     rm -f "$CURRENT_INFRA_HITS_TEMP" "$NEW_STG_HITS_TEMP" \
@@ -150,12 +131,10 @@ report_error_and_cleanup() {
 }
 
 # --- ロケール設定 ---
-
 # grepやsortの挙動を安定させるため、ロケールをC(ASCII)に設定
 export LC_ALL=C
 
 # --- 言語設定とメッセージ定義 ---
-
 # 環境変数LANGが "ja_JP" で始まる場合、メッセージを日本語に設定
 if [[ "$ORIGINAL_LANG" == ja_JP* ]]; then
 
@@ -576,7 +555,6 @@ if [[ "$SEARCH_PATH" == /var || "$SEARCH_PATH" == /var/ || "$SEARCH_PATH" == /va
 fi
 
 # --- 書き込み権限チェック関数 ---
-
 # スクリプトが出力ディレクトリに書き込み可能かを確認する
 check_write_permission() {
 
@@ -668,7 +646,6 @@ MIXED_OUTPUT_FILE="${OUTPUT_DIR}/${HOSTNAME_VAR}_${CURRENT_TIMESTAMP_FOR_FILENAM
 : > "$MIXED_OUTPUT_FILE"
 
 # --- ヘッダー生成と出力 ---
-
 # スクリプトの基本情報をヘッダー文字列として一度だけ生成する
 script_name=$(basename "$0")
 
@@ -708,11 +685,8 @@ printf "${MSG_LOG_GENERATED_LOCATION}\n"
 fi
 
 # --- ヘルパー関数の事前定義 ---
-
 # --- is_backup_file_name: ファイル名がバックアップファイルか判定 ---
-
 # 引数: ファイル名
-
 # 戻り値: バックアップファイルなら0(成功)、そうでなければ1(失敗)
 is_backup_file_name() {
     local filename="$1"
@@ -726,9 +700,7 @@ is_backup_file_name() {
 }
 
 # --- should_skip_file_for_processing: バイナリまたはサイズ超過ファイルを判定 ---
-
 # 引数: ファイルパス
-
 # 戻り値: スキップする場合は0、処理可能なら1
 should_skip_file_for_processing() {
     local filepath="$1"
@@ -814,9 +786,7 @@ check_and_adjust_td_repo_temp() {
 }
 
 # --- filter_grep_output: grepの出力を整形・フィルタリング ---
-
 # コメント行(#)を除外し、ヒット行にプレフィックスを付けるなどの処理を行う
-
 # 引数1: grepの生出力, 引数2: 特殊フィルタタイプ, 引数3: ヒット行のプレフィックス
 filter_grep_output() {
     local input_text="$1"
@@ -919,7 +889,6 @@ filter_grep_output() {
 }
 
 # --- IPアドレス検証用ヘルパー関数群 ---
-
 # is_valid_octet: 1つのオクテット(0-255)が有効か検証
 is_valid_octet() {
     local octet=$1
@@ -1723,7 +1692,6 @@ if [ "$SUBCOMMAND" = "rollback" ]; then
 fi
 
 # === 検索条件の定義 =================================
-
 # --- 現行基盤の定義 ---
 declare -A CURRENT_INFRA_CONDITIONS
 
@@ -1773,7 +1741,6 @@ CURRENT_INFRA_CONDITIONS_DESC=(
 )
 
 # --- 新基盤の定義 ---
-
 # 新基盤のホスト名パターンを配列で定義
 hostname_patterns_new_base=( '(?:line|event|mul|psweb|petname|recept|iposco|crm)-(?:lb|ap|db)[0-9]+[sp]' 'XXX-(?:ap|db|lb)[0-9]+[sp]' 'ipet-lb[0-9]+[sp]' 'ipetclub-(?:lb|ap|db)[0-9]+[sp]' 'dlagency-(?:lb|ap|db)[0-9]+[sp]' 'agency-(?:lb|ap|db)[0-9]+[sp]' 'epc(?:ds)?[0-9]+[sp]' 'docomo-(?:lb|ap|db)[0-9]+[sp]' 'ipet-(?:fs|bk)[0-9]+[sp]' 'sdp[0-9]+[sp]' 'myp-(?:ap|db)[0-9]+[sp]' 'smtp[0-9]+[sp]' 'mailman-ap[0-9]+[sp]' 'log[0-9]+[sp]' 'wel-(?:ap|db)[0-9]+[sp]' 'inext-(?:ap|db)[0-9]+[sp]' '(?:grafana|metabase)[0-9]+p' 'tableau0[0-9]+p' 'proxy[0-9]+[sp]' 'asteria-ap[0-9]+[sp]' 'infoone-(?:doc|ap)[0-9]+[sp]' 'biz-(?:ap|db)[0-9]+[sp]' 'dmp-(?:ap|ci|lb|mb)[0-9]+[sp]' 'xdp-(?:ap|conv|db)[0-9]+[sp]' 'ltt-(?:ap|db)[0-9]+[sp]' 'dwa-db[0-9]+[sp]' 'jenkins[0-9]+[sp]' '(?:bigip|repos|zabbix|scansv|pmp)[0-9]+[sp]' 'report-(?:ap|db)[0-9]+[sp]' 'jumpw[0-9]+[sp]' 'jumpl[0-9]+[sp]' 'fubi-db[0-9]+[sp]' 'bat[0-9]+[sp]' 'dwhapi-(?:ap|db)[0-9]+[sp]' '(?:eset|hulft|iFilter)[0-9]+[sp]' 'deploy[0-9]+[sp]' 'ifo-je-ap[0-9]+[sp](?:vm)?' 'jobarg[0-9]+' '[a-z0-9]+-(?:lb|ap|db|fs|bk|conv|ci|mb)[0-9]+[sp]' )
 declare -a hostname_patterns_stg=()
@@ -1857,7 +1824,6 @@ OTHER_CONDITIONS_DESC=(
 )
 
 # =====================================================================
-
 # --- メイン処理 ---
 TOTAL_FILES_SCANNED=0
 declare -A current_infra_hits_written
@@ -1868,7 +1834,6 @@ declare -A mixed_hits_written
 SECONDS=0
 
 # findコマンドでスキャン対象ファイルをリストアップし、whileループで1ファイルずつ処理
-
 # findの-print0とreadの-d $'\0' を使うことで、ファイル名にスペースや特殊文字が含まれていても安全に扱える
 while IFS= read -r -d $'\0' filepath; do
     if [ "$CANCEL_REQUESTED" -ne 0 ]; then
