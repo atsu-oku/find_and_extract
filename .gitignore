@@ -1,3 +1,7 @@
+# Local test artefacts
 test_evidence/
+test_evidence/new_transform/
+# Transform preview logs copied for verification
+test_evidence/new_transform/test_result.log
 td-agent_*.conf
 td-agent_sender_*.conf

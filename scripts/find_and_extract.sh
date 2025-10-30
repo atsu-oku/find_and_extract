@@ -12,7 +12,7 @@
 ###############################################################################
 
 # --- スクリプトバージョン ---
-SCRIPT_VERSION="3.4.4.0"
+SCRIPT_VERSION="3.4.4.1"
 
 # === 出力ディレクトリを /tmp に固定 ==================================
 # スクリプト名から拡張子(.sh)を除いた部分を取得
@@ -1193,7 +1193,7 @@ function replace_stg_tokens(str, prefix, suffix, before_char, after_char, result
 }
 {
     original_line = $0
-    if (original_line ~ /^[[:space:]]*(127\.0\.0\.1|::1)\b/) {
+    if (original_line ~ /^[[:space:]]*(127\.0\.0\.1|::1)([^[:alnum:]_]|$)/) {
         print original_line
         next
     }
@@ -1213,11 +1213,13 @@ function replace_stg_tokens(str, prefix, suffix, before_char, after_char, result
     if (line ~ /^[[:space:]]*([0-9]{1,3}\.){3}[0-9]{1,3}/ || line ~ /Hostname[[:space:]]*=/ || line ~ /PRETTY_HOSTNAME[[:space:]]*=/) {
         line = replace_stg_tokens(line)
     }
-    if (gsub(/newstaging/, "newproduction", line) > 0) {
-        changed = 1
-    }
-    if (gsub(/newstg/, "newprd", line) > 0) {
-        changed = 1
+    if (line !~ /^[[:space:]]*(127\.0\.0\.1|::1)([^[:alnum:]_]|$)/) {
+        if (gsub(/newstaging/, "newproduction", line) > 0) {
+            changed = 1
+        }
+        if (gsub(/newstg/, "newprd", line) > 0) {
+            changed = 1
+        }
     }
     print line comment_suffix
 }
