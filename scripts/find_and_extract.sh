@@ -12,7 +12,7 @@
 ###############################################################################
 
 # --- スクリプトバージョン ---
-SCRIPT_VERSION="3.4.2.0"
+SCRIPT_VERSION="3.4.3.0"
 
 # === 出力ディレクトリを /tmp に固定 ==================================
 # スクリプト名から拡張子(.sh)を除いた部分を取得
@@ -1154,41 +1154,20 @@ function rebuild_with_ip(str, rem, result, prefix, token, converted) {
     }
     return result rem
 }
-function replace_zero_ns(str, rem, result, prefix, next_char, matched, digits) {
+function replace_zero_ns(str, rem, result, prefix, next_char, prev_char, matched) {
     rem = str
     result = ""
-    while (match(rem, /0[0-9]+s/)) {
+    while (match(rem, /0[0-9]s/)) {
         prefix = substr(rem, 1, RSTART - 1)
+        prev_char = (RSTART > 1) ? substr(rem, RSTART - 1, 1) : ""
         next_char = substr(rem, RSTART + RLENGTH, 1)
-        if (next_char != "" && next_char ~ /[[:alnum:]_]/) {
+        if ((prev_char != "" && prev_char ~ /[[:alnum:]_]/) || (next_char != "" && next_char ~ /[[:alnum:]_]/)) {
             result = result substr(rem, 1, RSTART + RLENGTH - 1)
             rem = substr(rem, RSTART + RLENGTH)
             continue
         }
         matched = substr(rem, RSTART, RLENGTH)
-        digits = substr(matched, 2, length(matched) - 2)
-        if (digits == "") {
-            digits = "0"
-        }
-        result = result prefix "0" digits "p"
-        rem = substr(rem, RSTART + RLENGTH)
-        changed = 1
-    }
-    return result rem
-}
-function replace_trailing_s(str, rem, result, prefix, digit, next_char) {
-    rem = str
-    result = ""
-    while (match(rem, /[0-9]s/)) {
-        prefix = substr(rem, 1, RSTART - 1)
-        digit = substr(rem, RSTART, 1)
-        next_char = substr(rem, RSTART + RLENGTH, 1)
-        if (next_char != "" && next_char ~ /[[:alnum:]_]/) {
-            result = result substr(rem, 1, RSTART + RLENGTH - 1)
-            rem = substr(rem, RSTART + RLENGTH)
-            continue
-        }
-        result = result prefix digit "p"
+        result = result prefix substr(matched, 1, RLENGTH - 1) "p"
         rem = substr(rem, RSTART + RLENGTH)
         changed = 1
     }
@@ -1219,13 +1198,16 @@ function replace_stg_tokens(str, prefix, suffix, before_char, after_char, result
         next
     }
     is_httpd_conf = (target_path ~ /\.conf($|\.)/ || target_path ~ /\/etc\/httpd\//)
-    line = rebuild_with_ip($0)
-    updated = replace_zero_ns(line)
-    if (updated != line) {
-        line = updated
+    comment_suffix = ""
+    comment_pos = index(original_line, "#")
+    if (comment_pos > 0) {
+        line = substr(original_line, 1, comment_pos - 1)
+        comment_suffix = substr(original_line, comment_pos)
+    } else {
+        line = original_line
     }
-    line = updated
-    updated = replace_trailing_s(line)
+    line = rebuild_with_ip(line)
+    updated = replace_zero_ns(line)
     if (updated != line) {
         line = updated
     }
@@ -1235,7 +1217,7 @@ function replace_stg_tokens(str, prefix, suffix, before_char, after_char, result
     if (is_httpd_conf && gsub(/newstaging/, "newproduction", line) > 0) {
         changed = 1
     }
-    print line
+    print line comment_suffix
 }
 END {
     if (changed) {
