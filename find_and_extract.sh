@@ -23,7 +23,7 @@ LAST_NON_EXIT_COMMAND=""
 trap 'PREVIOUS_COMMAND=$CURRENT_COMMAND; CURRENT_COMMAND=$BASH_COMMAND; if [[ "$BASH_COMMAND" != exit\ * ]]; then LAST_NON_EXIT_COMMAND=$BASH_COMMAND; fi' DEBUG
 
 # --- スクリプトバージョン ---
-SCRIPT_VERSION="3.5.0.0"
+SCRIPT_VERSION="3.5.0.1"
 
 # === 出力ディレクトリを /tmp に固定 ==================================
 # スクリプト名から拡張子(.sh)を除いた部分を取得
