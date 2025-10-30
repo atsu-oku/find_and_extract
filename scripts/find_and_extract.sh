@@ -1200,7 +1200,12 @@ run_transform() {
             return 1
         }
 
-        transform_output=$(awk -v target_path="$filepath" -f - "$filepath" > "$temp_transformed" 2>&1 <<'AWK'
+        transform_err=$(mktemp) || {
+            printf "${MSG_ERROR_PREFIX}${MSG_TEMP_FILE_CREATION_FAILED}" "transform" >&2
+            rm -f "$temp_transformed" 2>/dev/null
+            return 1
+        }
+        awk -v target_path="$filepath" -f - "$filepath" > "$temp_transformed" 2>"$transform_err" <<'AWK'
 BEGIN {
     ip_regex = "[0-9]{1,3}(\\.[0-9]{1,3}){3}(/[0-9]{1,2})?"
     changed = 0
@@ -1352,8 +1357,9 @@ END {
 }
 
 AWK
-        )
         status=$?
+        transform_output=$(<"$transform_err")
+        rm -f "$transform_err"
         if [ $status -eq 0 ]; then
             TRANSFORM_TEMP_PATHS["$filepath"]="$temp_transformed"
             TRANSFORM_CHANGED_FILES+=("$filepath")
