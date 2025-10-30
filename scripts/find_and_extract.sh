@@ -462,12 +462,13 @@ while [[ $# -gt 0 ]]; do
         --skip-backup-files) SKIP_BACKUP_FILES_MODE=1; shift ;;
         --deletelogs)
             if [ "$SUBCOMMAND" = "transform" ]; then
-                printf "${MSG_ERROR_PREFIX}${MSG_DELETELLOGS_NOT_ALLOWED}\n" >&2
-                printf "${MSG_USAGE_LINE1_EXTENDED}\n" >&2; exit 1
+                printf "%s%s\n" "$MSG_ERROR_PREFIX" "$MSG_DELETELLOGS_NOT_ALLOWED" >&2
+                printf "%s\n" "$MSG_USAGE_LINE1_EXTENDED" >&2
+                exit 1
             fi
             if [ "$#" -gt 1 ] || [ ${#remaining_args[@]} -ne 0 ]; then
-                printf "${MSG_ERROR_PREFIX}${MSG_TOO_MANY_ARGS_OR_INVALID_COMBINATION}\n" >&2
-                printf "${MSG_USAGE_LINE1_EXTENDED}\n" >&2
+                printf "%s%s\n" "$MSG_ERROR_PREFIX" "$MSG_TOO_MANY_ARGS_OR_INVALID_COMBINATION" >&2
+                printf "%s\n" "$MSG_USAGE_LINE1_EXTENDED" >&2
                 exit 1
             fi
             DELETE_LOGS_MODE=1
@@ -475,32 +476,37 @@ while [[ $# -gt 0 ]]; do
             ;;
         --apply)
             if [ "$SUBCOMMAND" != "transform" ]; then
-                printf "${MSG_ERROR_PREFIX}${MSG_ERROR_APPLY_ONLY_TRANSFORM}\n" >&2
-                printf "${MSG_USAGE_LINE1_EXTENDED}\n" >&2; exit 1
+                printf "%s%s\n" "$MSG_ERROR_PREFIX" "$MSG_ERROR_APPLY_ONLY_TRANSFORM" >&2
+                printf "%s\n" "$MSG_USAGE_LINE1_EXTENDED" >&2
+                exit 1
             fi
             TRANSFORM_DRY_RUN=0
             shift ;;
         --dry-run)
             if [ "$SUBCOMMAND" != "transform" ]; then
-                printf "${MSG_ERROR_PREFIX}${MSG_ERROR_DRY_RUN_ONLY_TRANSFORM}\n" >&2
-                printf "${MSG_USAGE_LINE1_EXTENDED}\n" >&2; exit 1
+                printf "%s%s\n" "$MSG_ERROR_PREFIX" "$MSG_ERROR_DRY_RUN_ONLY_TRANSFORM" >&2
+                printf "%s\n" "$MSG_USAGE_LINE1_EXTENDED" >&2
+                exit 1
             fi
             TRANSFORM_DRY_RUN=1
             shift ;;
         --file)
             if [ "$SUBCOMMAND" != "rollback" ]; then
-                printf "${MSG_ERROR_PREFIX}${MSG_ERROR_ROLLBACK_FILE_OPTION}\n" >&2
-                printf "${MSG_USAGE_LINE1_EXTENDED}\n" >&2; exit 1
+                printf "%s%s\n" "$MSG_ERROR_PREFIX" "$MSG_ERROR_ROLLBACK_FILE_OPTION" >&2
+                printf "%s\n" "$MSG_USAGE_LINE1_EXTENDED" >&2
+                exit 1
             fi
             if [ $# -lt 2 ]; then
-                printf "${MSG_ERROR_PREFIX}${MSG_TOO_MANY_ARGS_OR_INVALID_COMBINATION}\n" >&2
-                printf "${MSG_USAGE_LINE1_EXTENDED}\n" >&2; exit 1
+                printf "%s%s\n" "$MSG_ERROR_PREFIX" "$MSG_TOO_MANY_ARGS_OR_INVALID_COMBINATION" >&2
+                printf "%s\n" "$MSG_USAGE_LINE1_EXTENDED" >&2
+                exit 1
             fi
             ROLLBACK_TARGETS+=("$2")
             shift 2
             ;;
-        -*) printf "${MSG_ERROR_PREFIX}${MSG_ERROR_INVALID_OPTION}: %s\n" "$1" >&2
-            printf "${MSG_USAGE_LINE1_EXTENDED}\n" >&2; exit 1 ;;
+        -*) printf "%s%s: %s\n" "$MSG_ERROR_PREFIX" "$MSG_ERROR_INVALID_OPTION" "$1" >&2
+            printf "%s\n" "$MSG_USAGE_LINE1_EXTENDED" >&2
+            exit 1 ;;
         *) remaining_args+=("$1"); shift ;;
     esac
 done
@@ -508,43 +514,47 @@ done
 # 動作モードに応じて引数のバリデーションを行う
 if [ "$SUBCOMMAND" = "rollback" ]; then
     if [ "$DELETE_LOGS_MODE" -eq 1 ]; then
-        printf "${MSG_ERROR_PREFIX}${MSG_DELETELLOGS_NOT_ALLOWED}\n" >&2
-        printf "${MSG_USAGE_LINE1_EXTENDED}\n" >&2; exit 1
+        printf "%s%s\n" "$MSG_ERROR_PREFIX" "$MSG_DELETELLOGS_NOT_ALLOWED" >&2
+        printf "%s\n" "$MSG_USAGE_LINE1_EXTENDED" >&2
+        exit 1
     fi
     if [ ${#remaining_args[@]} -ne 1 ]; then
-        printf "${MSG_ERROR_PREFIX}${MSG_TOO_MANY_ARGS_OR_INVALID_COMBINATION}\n" >&2
-        printf "${MSG_USAGE_LINE1_EXTENDED}\n" >&2; exit 1
+        printf "%s%s\n" "$MSG_ERROR_PREFIX" "$MSG_TOO_MANY_ARGS_OR_INVALID_COMBINATION" >&2
+        printf "%s\n" "$MSG_USAGE_LINE1_EXTENDED" >&2
+        exit 1
     fi
     SEARCH_PATH="${remaining_args[0]}"
     if [ ! -f "$SEARCH_PATH" ]; then
-        printf "${MSG_ERROR_PREFIX}${MSG_ROLLBACK_LOG_NOT_FOUND}\n" "$SEARCH_PATH" >&2
+        printf "%s" "$MSG_ERROR_PREFIX" >&2
+        printf "$MSG_ROLLBACK_LOG_NOT_FOUND" "$SEARCH_PATH" >&2
         exit 1
     fi
 elif [ "$DELETE_LOGS_MODE" -eq 1 ]; then
 
     # 削除モードの場合、他の引数は許可しない
     if [ ${#remaining_args[@]} -ne 0 ]; then
-        printf "${MSG_ERROR_PREFIX}${MSG_TOO_MANY_ARGS_OR_INVALID_COMBINATION}\n" >&2
-        printf "${MSG_USAGE_LINE1_EXTENDED}\n" >&2
+        printf "%s%s\n" "$MSG_ERROR_PREFIX" "$MSG_TOO_MANY_ARGS_OR_INVALID_COMBINATION" >&2
+        printf "%s\n" "$MSG_USAGE_LINE1_EXTENDED" >&2
         exit 1
     fi
 else
 
     # 検索/変換モードの場合、検索パスが1つだけ指定されていることを確認
     if [ ${#remaining_args[@]} -eq 0 ]; then
-        printf "${MSG_ERROR_PREFIX}${MSG_SEARCH_PATH_NOT_SPECIFIED}\n" >&2
-        printf "${MSG_USAGE_LINE1_EXTENDED}\n" >&2
+        printf "%s%s\n" "$MSG_ERROR_PREFIX" "$MSG_SEARCH_PATH_NOT_SPECIFIED" >&2
+        printf "%s\n" "$MSG_USAGE_LINE1_EXTENDED" >&2
         exit 1
     elif [ ${#remaining_args[@]} -gt 1 ]; then
-        printf "${MSG_ERROR_PREFIX}${MSG_TOO_MANY_ARGS_OR_INVALID_COMBINATION}\n" >&2
-        printf "${MSG_USAGE_LINE1_EXTENDED}\n" >&2
+        printf "%s%s\n" "$MSG_ERROR_PREFIX" "$MSG_TOO_MANY_ARGS_OR_INVALID_COMBINATION" >&2
+        printf "%s\n" "$MSG_USAGE_LINE1_EXTENDED" >&2
         exit 1
     else
         SEARCH_PATH="${remaining_args[0]}"
 
         # 検索パスがディレクトリとして存在するか確認
         if [ ! -d "$SEARCH_PATH" ]; then
-            printf "${MSG_ERROR_PREFIX}${MSG_SEARCH_PATH_NOT_EXIST_OR_DIR}" "$SEARCH_PATH" >&2
+            printf "%s" "$MSG_ERROR_PREFIX" >&2
+            printf "$MSG_SEARCH_PATH_NOT_EXIST_OR_DIR" "$SEARCH_PATH" >&2
             exit 1
         fi
     fi
@@ -560,7 +570,7 @@ check_write_permission() {
 
     # mktempで一時ファイルを作成できれば、書き込み権限があると判断
     PERMISSION_CHECK_TEST_FILE_TEMP=$(mktemp "${OUTPUT_DIR}/.perm_check_XXXXXX") || {
-        printf "%s\n" "${MSG_ERROR_PREFIX}${MSG_ERROR_WRITE_PERMISSION_DENIED}" >&2
+        printf "%s%s\n" "$MSG_ERROR_PREFIX" "$MSG_ERROR_WRITE_PERMISSION_DENIED" >&2
         exit 1
     }
 
@@ -616,7 +626,8 @@ if [ "$DELETE_LOGS_MODE" -eq 1 ]; then
             if rm "$file_to_remove_confirmed"; then
                 printf "%s%s\n" "$MSG_LOG_DELETED" "$file_to_remove_confirmed"
             else
-                printf "${MSG_ERROR_PREFIX}${MSG_LOG_DELETE_FAILED}" "$file_to_remove_confirmed" >&2
+                printf "%s" "$MSG_ERROR_PREFIX" >&2
+                printf "$MSG_LOG_DELETE_FAILED" "$file_to_remove_confirmed" >&2
             fi
         done
         printf "%s\n" "$MSG_LOG_DELETE_COMPLETED"
@@ -668,15 +679,39 @@ printf "%s" "$header_info" > "$OTHER_OUTPUT_FILE"
 printf "%s" "$header_info" > "$MIXED_OUTPUT_FILE"
 
 # --- 一時ファイル作成 ---
-CURRENT_INFRA_HITS_TEMP=$(mktemp) || { printf "${MSG_ERROR_PREFIX}${MSG_TEMP_FILE_CREATION_FAILED}" "CURRENT_INFRA_HITS_TEMP" >&2; exit 1; }
+CURRENT_INFRA_HITS_TEMP=$(mktemp) || {
+    printf "%s" "$MSG_ERROR_PREFIX" >&2
+    printf "$MSG_TEMP_FILE_CREATION_FAILED" "CURRENT_INFRA_HITS_TEMP" >&2
+    exit 1
+}
 
-NEW_STG_HITS_TEMP=$(mktemp) || { cleanup; printf "${MSG_ERROR_PREFIX}${MSG_TEMP_FILE_CREATION_FAILED}" "NEW_STG_HITS_TEMP" >&2; exit 1; }
+NEW_STG_HITS_TEMP=$(mktemp) || {
+    cleanup
+    printf "%s" "$MSG_ERROR_PREFIX" >&2
+    printf "$MSG_TEMP_FILE_CREATION_FAILED" "NEW_STG_HITS_TEMP" >&2
+    exit 1
+}
 
-NEW_PRD_HITS_TEMP=$(mktemp) || { cleanup; printf "${MSG_ERROR_PREFIX}${MSG_TEMP_FILE_CREATION_FAILED}" "NEW_PRD_HITS_TEMP" >&2; exit 1; }
+NEW_PRD_HITS_TEMP=$(mktemp) || {
+    cleanup
+    printf "%s" "$MSG_ERROR_PREFIX" >&2
+    printf "$MSG_TEMP_FILE_CREATION_FAILED" "NEW_PRD_HITS_TEMP" >&2
+    exit 1
+}
 
-OTHER_HITS_TEMP=$(mktemp) || { cleanup; printf "${MSG_ERROR_PREFIX}${MSG_TEMP_FILE_CREATION_FAILED}" "OTHER_HITS_TEMP" >&2; exit 1; }
+OTHER_HITS_TEMP=$(mktemp) || {
+    cleanup
+    printf "%s" "$MSG_ERROR_PREFIX" >&2
+    printf "$MSG_TEMP_FILE_CREATION_FAILED" "OTHER_HITS_TEMP" >&2
+    exit 1
+}
 
-MIXED_HITS_TEMP=$(mktemp) || { cleanup; printf "${MSG_ERROR_PREFIX}${MSG_TEMP_FILE_CREATION_FAILED}" "MIXED_HITS_TEMP" >&2; exit 1; }
+MIXED_HITS_TEMP=$(mktemp) || {
+    cleanup
+    printf "%s" "$MSG_ERROR_PREFIX" >&2
+    printf "$MSG_TEMP_FILE_CREATION_FAILED" "MIXED_HITS_TEMP" >&2
+    exit 1
+}
 
 # --- 実行開始メッセージ ---
 printf "%s\n" "$MSG_SEARCH_START"
@@ -922,7 +957,8 @@ check_for_invalid_ips() {
 
         # 抜き出した文字列が有効なIPアドレスか検証
         if ! is_valid_ip "$potential_ip"; then
-            printf "${MSG_ERROR_PREFIX}${MSG_ERROR_INVALID_IP_FORMAT}" "$filepath" "$line_num" "$potential_ip" >&2
+            printf "%s" "$MSG_ERROR_PREFIX" >&2
+            printf "$MSG_ERROR_INVALID_IP_FORMAT" "$filepath" "$line_num" "$potential_ip" >&2
         fi
     done
 }
@@ -1148,7 +1184,8 @@ run_transform() {
         fi
         if [ "$filepath" = "/etc/yum.repos.d/td.repo" ]; then
             temp_transformed=$(mktemp) || {
-                printf "${MSG_ERROR_PREFIX}${MSG_TEMP_FILE_CREATION_FAILED}" "transform" >&2
+                printf "%s" "$MSG_ERROR_PREFIX" >&2
+                printf "$MSG_TEMP_FILE_CREATION_FAILED" "transform" >&2
                 return 1
             }
 
@@ -1196,12 +1233,14 @@ run_transform() {
             printf "%s%s\n" "${MSG_VERBOSE_PREFIX}" "${MSG_VERBOSE_SCANNING_FILE}$filepath"
         fi
         temp_transformed=$(mktemp) || {
-            printf "${MSG_ERROR_PREFIX}${MSG_TEMP_FILE_CREATION_FAILED}" "transform" >&2
+            printf "%s" "$MSG_ERROR_PREFIX" >&2
+            printf "$MSG_TEMP_FILE_CREATION_FAILED" "transform" >&2
             return 1
         }
 
         transform_err=$(mktemp) || {
-            printf "${MSG_ERROR_PREFIX}${MSG_TEMP_FILE_CREATION_FAILED}" "transform" >&2
+            printf "%s" "$MSG_ERROR_PREFIX" >&2
+            printf "$MSG_TEMP_FILE_CREATION_FAILED" "transform" >&2
             rm -f "$temp_transformed" 2>/dev/null
             return 1
         }
@@ -1395,7 +1434,8 @@ AWK
                 transform_output="(no additional details)"
             fi
             TRANSFORM_FAILURE_MESSAGES["$filepath"]="$transform_output"
-            printf "${MSG_ERROR_PREFIX}${MSG_ERROR_TRANSFORM_EXECUTION}\n" "$transform_output" >&2
+            printf "%s" "$MSG_ERROR_PREFIX" >&2
+            printf "$MSG_ERROR_TRANSFORM_EXECUTION" "$transform_output" >&2
         fi
     done < <(find "$SEARCH_PATH" -path '*/selinux/*' -prune -o -type f -not -name '*#*' -print0)
     if [ "$CANCEL_REQUESTED" -ne 0 ]; then
@@ -1514,7 +1554,7 @@ AWK
             td_repo_status=$?
             if [ -n "$TD_REPO_LAST_MESSAGE" ]; then
                 if [ "$TD_REPO_LAST_FAILURE" -eq 1 ]; then
-                    printf "${MSG_ERROR_PREFIX}%s\n" "$TD_REPO_LAST_MESSAGE" >&2
+                    printf "%s%s\n" "$MSG_ERROR_PREFIX" "$TD_REPO_LAST_MESSAGE" >&2
                 else
                     printf "%s\n" "$TD_REPO_LAST_MESSAGE"
                 fi
@@ -1559,7 +1599,8 @@ AWK
         orig_group=$(stat -c '%g' "$file" 2>/dev/null)
         if ! cp -p "$file" "$backup_path" 2>/dev/null; then
             if ! cp "$file" "$backup_path" 2>/dev/null; then
-                printf "${MSG_ERROR_PREFIX}${MSG_TRANSFORM_FILE_FAILED}\n" "$file" >&2
+                printf "%s" "$MSG_ERROR_PREFIX" >&2
+                printf "$MSG_TRANSFORM_FILE_FAILED" "$file" >&2
                 apply_failures=$((apply_failures + 1))
                 if [ -n "$temp_file" ]; then rm -f "$temp_file" 2>/dev/null; fi
                 if [ -n "$diff_saved" ]; then rm -f "$diff_saved" 2>/dev/null; fi
@@ -1569,7 +1610,8 @@ AWK
             fi
         fi
         if ! cat "$temp_file" > "$file"; then
-            printf "${MSG_ERROR_PREFIX}${MSG_TRANSFORM_FILE_FAILED}\n" "$file" >&2
+            printf "%s" "$MSG_ERROR_PREFIX" >&2
+            printf "$MSG_TRANSFORM_FILE_FAILED" "$file" >&2
             cp "$backup_path" "$file" 2>/dev/null
             apply_failures=$((apply_failures + 1))
             if [ -n "$temp_file" ]; then rm -f "$temp_file" 2>/dev/null; fi
@@ -1616,7 +1658,8 @@ run_rollback() {
     local target
     printf "%s\n" "$MSG_ROLLBACK_MODE_HEADER"
     if [ ! -f "$log_file" ]; then
-        printf "${MSG_ERROR_PREFIX}${MSG_ROLLBACK_LOG_NOT_FOUND}\n" "$log_file" >&2
+        printf "%s" "$MSG_ERROR_PREFIX" >&2
+        printf "$MSG_ROLLBACK_LOG_NOT_FOUND" "$log_file" >&2
         exit 1
     fi
     if [ ${#ROLLBACK_TARGETS[@]} -gt 0 ]; then
@@ -1633,7 +1676,8 @@ run_rollback() {
             continue
         fi
         if [ -z "$original_path" ] || [ -z "$backup_path" ]; then
-            printf "${MSG_ERROR_PREFIX}${MSG_ROLLBACK_INVALID_LINE}\n" "$original_path" >&2
+            printf "%s" "$MSG_ERROR_PREFIX" >&2
+            printf "$MSG_ROLLBACK_INVALID_LINE" "$original_path" >&2
             failed_count=$((failed_count + 1))
             continue
         fi
@@ -1645,13 +1689,15 @@ run_rollback() {
             fi
         fi
         if [ ! -f "$backup_path" ]; then
-            printf "${MSG_ERROR_PREFIX}${MSG_ROLLBACK_BACKUP_MISSING}\n" "$backup_path" >&2
+            printf "%s" "$MSG_ERROR_PREFIX" >&2
+            printf "$MSG_ROLLBACK_BACKUP_MISSING" "$backup_path" >&2
             failed_count=$((failed_count + 1))
             continue
         fi
         if ! cp -p "$backup_path" "$original_path" 2>/dev/null; then
             if ! cp "$backup_path" "$original_path" 2>/dev/null; then
-                printf "${MSG_ERROR_PREFIX}${MSG_ROLLBACK_FILE_FAILED}\n" "$original_path" >&2
+                printf "%s" "$MSG_ERROR_PREFIX" >&2
+                printf "$MSG_ROLLBACK_FILE_FAILED" "$original_path" >&2
                 failed_count=$((failed_count + 1))
                 continue
             fi
@@ -1669,7 +1715,8 @@ run_rollback() {
     if [ $use_targets -eq 1 ]; then
         for target in "${ROLLBACK_TARGETS[@]}"; do
             if [ "${target_seen[$target]}" -ne 1 ]; then
-                printf "${MSG_ERROR_PREFIX}${MSG_ROLLBACK_TARGET_NOT_FOUND}\n" "$target" >&2
+                printf "%s" "$MSG_ERROR_PREFIX" >&2
+                printf "$MSG_ROLLBACK_TARGET_NOT_FOUND" "$target" >&2
                 failed_count=$((failed_count + 1))
             fi
         done
