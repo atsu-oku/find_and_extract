@@ -1,3 +1,4 @@
+- v3.5.0.0 (2025-10-30): バックアップファイルを `*_YYYYMMDD_HHMM.bak` 形式へ統一し、混在定義ログの出力とバックアップファイル検出の拡張、ループバック行を含む newstaging/newstg 置換を強化。
 # find_and_extract.sh Version History
 
 - v3.4.4.3 (2025-10-30): `hostname-ap01s` のようなホスト名でも `01s` → `01p` に変換されるよう `0Ns` 置換を拡張。

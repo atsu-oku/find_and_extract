@@ -12,7 +12,7 @@
 ###############################################################################
 
 # --- スクリプトバージョン ---
-SCRIPT_VERSION="3.4.4.3"
+SCRIPT_VERSION="3.5.0.0"
 
 # === 出力ディレクトリを /tmp に固定 ==================================
 # スクリプト名から拡張子(.sh)を除いた部分を取得
@@ -42,6 +42,7 @@ CURRENT_INFRA_HITS_TEMP=""
 NEW_STG_HITS_TEMP=""
 NEW_PRD_HITS_TEMP=""
 OTHER_HITS_TEMP=""
+MIXED_HITS_TEMP=""
 PERMISSION_CHECK_TEST_FILE_TEMP=""
 TD_REPO_LAST_MESSAGE=""
 TD_REPO_LAST_FAILURE=0
@@ -50,7 +51,7 @@ TD_REPO_LAST_FAILURE=0
 # スクリプト終了時に呼び出され、作成した一時ファイルをすべて削除する
 cleanup() {
     rm -f "$CURRENT_INFRA_HITS_TEMP" "$NEW_STG_HITS_TEMP" \
-        "$NEW_PRD_HITS_TEMP" "$OTHER_HITS_TEMP" \
+        "$NEW_PRD_HITS_TEMP" "$OTHER_HITS_TEMP" "$MIXED_HITS_TEMP" \
         "$PERMISSION_CHECK_TEST_FILE_TEMP" 2>/dev/null
     for temp_path in "${TRANSFORM_TEMP_PATHS[@]}"; do
         if [ -n "$temp_path" ]; then
@@ -119,6 +120,7 @@ if [[ "$ORIGINAL_LANG" == ja_JP* ]]; then
     MSG_NEW_STG_LOG_FILE_LABEL="新基盤STG定義ログファイル: "
     MSG_NEW_PRD_LOG_FILE_LABEL="新基盤PRD定義ログファイル: "
     MSG_OTHER_LOG_FILE_LABEL="その他定義ログファイル: "
+    MSG_MIXED_LOG_FILE_LABEL="混在定義ログファイル: "
     MSG_LOG_GENERATED_LOCATION="ログの出力先： ${OUTPUT_DIR}"
     MSG_LOG_DELETE_MODE="ログファイル削除モードです。"
     MSG_LOG_DELETE_NOT_FOUND="削除対象のログファイルは見つかりませんでした。"
@@ -174,10 +176,12 @@ if [[ "$ORIGINAL_LANG" == ja_JP* ]]; then
     MSG_CHECK_NEW_PRD_LOG="新基盤 PRD の定義に関するログは %s を確認してください。\n"
     MSG_CHECK_OTHER_LOG="その他の定義に関するログは %s を確認してください。\n"
     MSG_CHECK_CURRENT_INFRA_LOG="現行基盤の定義に関するログは %s を確認してください。\n"
+    MSG_CHECK_MIXED_LOG="混在定義に関するログは %s を確認してください。\n"
     MSG_CURRENT_INFRA_HITS_HEADER="--- 現行基盤の定義を含むファイル ---"
     MSG_NEW_STG_HITS_HEADER="--- 新基盤 STG の定義を含むファイル ---"
     MSG_NEW_PRD_HITS_HEADER="--- 新基盤 PRD の定義を含むファイル ---"
     MSG_OTHER_HITS_HEADER="--- その他の定義を含むファイル ---"
+    MSG_MIXED_HITS_HEADER="--- 定義が混在しているファイル ---"
     MSG_NO_HITS="該当なし"
     MSG_FILE_LABEL="ファイル: "
     MSG_CONDITION_LABEL_CURRENT="条件(現行基盤)"
@@ -214,6 +218,7 @@ if [[ "$ORIGINAL_LANG" == ja_JP* ]]; then
     MSG_MATCHES_LABEL="該当箇所"
     MSG_CONTEXT_LINES_LABEL="前後5行を含む"
     MSG_HIT_LINE_PREFIX="ヒット行"
+    MSG_MIXED_CONDITIONS_LABEL="検出カテゴリ: %s"
     MSG_MYHOSTNAME="実行サーバ名:"
     SEPARATOR_LINE_LONG="================================================================================"
     SEPARATOR_LINE_SHORT="--------------------------------------------------------------------------------"
@@ -246,6 +251,7 @@ else
     MSG_NEW_STG_LOG_FILE_LABEL="New Infra (STG) Log:"
     MSG_NEW_PRD_LOG_FILE_LABEL="New Infra (PRD) Log:"
     MSG_OTHER_LOG_FILE_LABEL="Other Matches Log:"
+    MSG_MIXED_LOG_FILE_LABEL="Mixed Definitions Log:"
     MSG_LOG_GENERATED_LOCATION="(generated in ${OUTPUT_DIR})"
     MSG_LOG_DELETE_MODE="Log file deletion mode."
     MSG_LOG_DELETE_NOT_FOUND="No log files found to delete."
@@ -301,10 +307,12 @@ else
     MSG_CHECK_NEW_PRD_LOG="For new PRD definitions, please check: %s\n"
     MSG_CHECK_OTHER_LOG="For other findings, please check: %s\n"
     MSG_CHECK_CURRENT_INFRA_LOG="For current infrastructure definitions, please check: %s\n"
+    MSG_CHECK_MIXED_LOG="For mixed definitions, please check: %s\n"
     MSG_CURRENT_INFRA_HITS_HEADER="--- Files with Current Infrastructure Definitions ---"
     MSG_NEW_STG_HITS_HEADER="--- Files with New Infrastructure Definition (STG) ---"
     MSG_NEW_PRD_HITS_HEADER="--- Files with New Infrastructure Definition (PRD) ---"
     MSG_OTHER_HITS_HEADER="--- Files with Other Notable Definitions ---"
+    MSG_MIXED_HITS_HEADER="--- Files with Mixed Definitions ---"
     MSG_NO_HITS="None"
     MSG_FILE_LABEL="File: "
     MSG_CONDITION_LABEL_CURRENT="Condition(Current Infra)"
@@ -341,6 +349,7 @@ else
     MSG_MATCHES_LABEL="Matches"
     MSG_CONTEXT_LINES_LABEL="including 5 lines of context"
     MSG_HIT_LINE_PREFIX="HIT Line"
+    MSG_MIXED_CONDITIONS_LABEL="Detected categories: %s"
     MSG_MYHOSTNAME="Server Name:"
     SEPARATOR_LINE_LONG="================================================================================"
     SEPARATOR_LINE_SHORT="--------------------------------------------------------------------------------"
@@ -579,11 +588,13 @@ CURRENT_INFRA_OUTPUT_FILE="${OUTPUT_DIR}/${HOSTNAME_VAR}_${CURRENT_TIMESTAMP_FOR
 NEW_STG_OUTPUT_FILE="${OUTPUT_DIR}/${HOSTNAME_VAR}_${CURRENT_TIMESTAMP_FOR_FILENAME}_new_infra_stg.log"
 NEW_PRD_OUTPUT_FILE="${OUTPUT_DIR}/${HOSTNAME_VAR}_${CURRENT_TIMESTAMP_FOR_FILENAME}_new_infra_prd.log"
 OTHER_OUTPUT_FILE="${OUTPUT_DIR}/${HOSTNAME_VAR}_${CURRENT_TIMESTAMP_FOR_FILENAME}_other.log"
+MIXED_OUTPUT_FILE="${OUTPUT_DIR}/${HOSTNAME_VAR}_${CURRENT_TIMESTAMP_FOR_FILENAME}_mixed.log"
 # ログファイルを空の状態で作成
 : > "$CURRENT_INFRA_OUTPUT_FILE"
 : > "$NEW_STG_OUTPUT_FILE"
 : > "$NEW_PRD_OUTPUT_FILE"
 : > "$OTHER_OUTPUT_FILE"
+: > "$MIXED_OUTPUT_FILE"
 
 # --- ヘッダー生成と出力 ---
 # スクリプトの基本情報をヘッダー文字列として一度だけ生成する
@@ -604,6 +615,7 @@ printf "%s" "$header_info" > "$CURRENT_INFRA_OUTPUT_FILE"
 printf "%s" "$header_info" > "$NEW_STG_OUTPUT_FILE"
 printf "%s" "$header_info" > "$NEW_PRD_OUTPUT_FILE"
 printf "%s" "$header_info" > "$OTHER_OUTPUT_FILE"
+printf "%s" "$header_info" > "$MIXED_OUTPUT_FILE"
 
 
 # --- 一時ファイル作成 ---
@@ -611,6 +623,7 @@ CURRENT_INFRA_HITS_TEMP=$(mktemp) || { printf "${MSG_ERROR_PREFIX}${MSG_TEMP_FIL
 NEW_STG_HITS_TEMP=$(mktemp) || { cleanup; printf "${MSG_ERROR_PREFIX}${MSG_TEMP_FILE_CREATION_FAILED}" "NEW_STG_HITS_TEMP" >&2; exit 1; }
 NEW_PRD_HITS_TEMP=$(mktemp) || { cleanup; printf "${MSG_ERROR_PREFIX}${MSG_TEMP_FILE_CREATION_FAILED}" "NEW_PRD_HITS_TEMP" >&2; exit 1; }
 OTHER_HITS_TEMP=$(mktemp) || { cleanup; printf "${MSG_ERROR_PREFIX}${MSG_TEMP_FILE_CREATION_FAILED}" "OTHER_HITS_TEMP" >&2; exit 1; }
+MIXED_HITS_TEMP=$(mktemp) || { cleanup; printf "${MSG_ERROR_PREFIX}${MSG_TEMP_FILE_CREATION_FAILED}" "MIXED_HITS_TEMP" >&2; exit 1; }
 
 # --- 実行開始メッセージ ---
 printf "%s\n" "$MSG_SEARCH_START"
@@ -627,7 +640,7 @@ fi
 is_backup_file_name() {
     local filename="$1"
     # 正規表現で、.bak, .old, ~, .swp, タイムスタンプなどのパターンに一致するか確認
-    if [[ "$filename" =~ \.bak$ || "$filename" =~ \.old$ || "$filename" =~ ~$ || "$filename" =~ \.swp$ || "$filename" =~ \.swo$ || "$filename" =~ [._][0-9]{8}_[0-9]{6}(\..*)?$ || "$filename" =~ [._][0-9]{8}(\..*)?$ || "$filename" =~ \#[0-9]+\#$ || "$filename" =~ ^\.# || "$filename" =~ \.[0-9]{8}_[0-9]{6}$ || "$filename" =~ \.[0-9]{8}$ ]]; then
+    if [[ "$filename" =~ \.bak$ || "$filename" =~ \.old$ || "$filename" =~ ~$ || "$filename" =~ \.swp$ || "$filename" =~ \.swo$ || "$filename" =~ [._][0-9]{8}_[0-9]{6}(\..*)?$ || "$filename" =~ [._][0-9]{8}_[0-9]{4}\.bak$ || "$filename" =~ [._][0-9]{8}(\..*)?$ || "$filename" =~ [._-][Bb][Kk](\..*)?$ || "$filename" =~ \#[0-9]+\#$ || "$filename" =~ ^\.# || "$filename" =~ \.[0-9]{8}_[0-9]{6}$ || "$filename" =~ \.[0-9]{8}$ ]]; then
         return 0 # true (バックアップファイル)
     else
         return 1 # false
@@ -1370,6 +1383,11 @@ AWK
         printf "# original_path\tbackup_path\toriginal_mode\toriginal_owner\toriginal_group\n" > "$change_log"
     fi
 
+    local backup_suffix="${timestamp:0:13}"
+    if [[ "$backup_suffix" != *_* ]]; then
+        backup_suffix=$(date +%Y%m%d_%H%M)
+    fi
+
     for file in "${sorted_changed_files[@]}"; do
         if [ "$CANCEL_REQUESTED" -ne 0 ]; then
             break
@@ -1420,7 +1438,7 @@ AWK
                 continue
             fi
         fi
-        local backup_path="${file}.bak_${timestamp}"
+        local backup_path="${file}_${backup_suffix}.bak"
         local orig_mode orig_owner orig_group
 
         orig_mode=$(stat -c '%a' "$file" 2>/dev/null)
@@ -1729,6 +1747,7 @@ declare -A current_infra_hits_written
 declare -A new_stg_hits_written
 declare -A new_prd_hits_written
 declare -A other_hits_written
+declare -A mixed_hits_written
 
 SECONDS=0
 # findコマンドでスキャン対象ファイルをリストアップし、whileループで1ファイルずつ処理
@@ -1906,6 +1925,31 @@ while IFS= read -r -d $'\0' filepath; do
         printf "\n" >> "$OTHER_OUTPUT_FILE"
     fi
 
+    matched_categories=()
+    if [ "$current_infra_match_found" -ne 0 ]; then
+        matched_categories+=("$MSG_CONDITION_LABEL_CURRENT")
+    fi
+    if [ "$new_stg_match_found" -ne 0 ]; then
+        matched_categories+=("$MSG_CONDITION_LABEL_NEW_STG")
+    fi
+    if [ "$new_prd_match_found" -ne 0 ]; then
+        matched_categories+=("$MSG_CONDITION_LABEL_NEW_PRD")
+    fi
+    if [ "$other_match_found" -ne 0 ]; then
+        matched_categories+=("$MSG_CONDITION_LABEL_OTHER")
+    fi
+    if [ ${#matched_categories[@]} -ge 2 ]; then
+        mixed_summary=$(IFS=', '; printf '%s' "${matched_categories[*]}")
+        printf "%s\n" "$SEPARATOR_LINE_LONG" >> "$MIXED_OUTPUT_FILE"
+        printf "${MSG_FILE_LABEL}\"%s\"\n" "$filepath" >> "$MIXED_OUTPUT_FILE"
+        printf "${MSG_MIXED_CONDITIONS_LABEL}\n" "$mixed_summary" >> "$MIXED_OUTPUT_FILE"
+        printf "\n" >> "$MIXED_OUTPUT_FILE"
+        if [ -z "${mixed_hits_written["$abs_filepath"]}" ]; then
+            echo "$abs_filepath" >> "$MIXED_HITS_TEMP"
+            mixed_hits_written["$abs_filepath"]=1
+        fi
+    fi
+
 done < <(find "$SEARCH_PATH" -path '*/selinux/*' -prune -o -type f -not -name '*#*' -print0)
 
 # 中断要求があった場合は処理を終了
@@ -1921,6 +1965,7 @@ printf -- "${MSG_CHECK_NEW_STG_LOG}" "$NEW_STG_OUTPUT_FILE"
 printf -- "${MSG_CHECK_NEW_PRD_LOG}" "$NEW_PRD_OUTPUT_FILE"
 printf -- "${MSG_CHECK_OTHER_LOG}" "$OTHER_OUTPUT_FILE"
 printf -- "${MSG_CHECK_CURRENT_INFRA_LOG}" "$CURRENT_INFRA_OUTPUT_FILE"
+printf -- "${MSG_CHECK_MIXED_LOG}" "$MIXED_OUTPUT_FILE"
 printf -- "${MSG_SUMMARY_TOTAL_FILES_SCANNED}\n" "$TOTAL_FILES_SCANNED"
 
 chmod -R 777 "${OUTPUT_DIR}"
@@ -1936,6 +1981,9 @@ print_filtered_hit_list "$NEW_PRD_HITS_TEMP"
 
 printf "\n%s\n" "$MSG_OTHER_HITS_HEADER"
 print_filtered_hit_list "$OTHER_HITS_TEMP"
+
+printf "\n%s\n" "$MSG_MIXED_HITS_HEADER"
+print_filtered_hit_list "$MIXED_HITS_TEMP"
 
 printf "\n処理にかかった時間: %d 秒\n" "$SECONDS"
 
