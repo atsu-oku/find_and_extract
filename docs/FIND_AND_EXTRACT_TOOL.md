@@ -11,8 +11,8 @@
 
 ## 実行形式
 ```bash
-./scripts/find_and_extract.sh [scan|transform|rollback] [オプション] <対象パス>
-./scripts/find_and_extract.sh --deletelogs
+./find_and_extract.sh [scan|transform|rollback] [オプション] <対象パス>
+./find_and_extract.sh --deletelogs
 ```
 *サブコマンド、省略時は `scan`。`--deletelogs` は単独指定。*
 
@@ -80,15 +80,15 @@
 | --- | --- | --- | --- |
 | STG→PRD IPv4 | IPv4 / IPv4-CIDR トークンで第 3 オクテットが 170-179 | 第 3 オクテットから 10 を減算（サブネット表記があれば維持） | `172.16.175.0/24` → `172.16.165.0/24` |
 | `/etc/profile` 特例 | 対象ファイルが `/etc/profile` で、第 3 オクテットが 173 | 第 3 オクテットを `162` に置換（第 4 オクテットは保持） | `172.16.173.8` → `172.16.162.8` |
-| `0Ns` 表記 | `01s` 〜 `09s` のように `0` + 1桁の数字 + `s` が単語として現れ、直後が英数字/`_` 以外 | `s` を `p` に置換し、桁構成はそのまま維持 | `01s` → `01p` |
+| `0Ns` 表記 | `0` + 数字列 + `s` が単語として現れ、直後が英数字/`_` 以外 | `s` を `p` に置換し、桁構成はそのまま維持 | `01s` → `01p` |
 | `stg` トークン | 行頭が IP で始まる行／`Hostname=`／`PRETTY_HOSTNAME=` 行に含まれる単語としての `stg` | `prd` に置換（周囲が非英数字で区切られている場合のみ） | `Hostname=web-stg` → `Hostname=web-prd` |
 | 新STGキーワード | 行内の `newstaging` または `newstg`（コメント除外後） | それぞれ `newproduction` / `newprd` に置換 | `SetEnv FUEL_ENV newstaging` → `SetEnv FUEL_ENV newproduction` |
 
 補足:
 - IP 置換では `127.0.0.1` / `::1` の行も入力対象ですが、変換条件に合致しないため IP 自体は変更されません（コメント行は引き続き除外）。
 - `0Ns` 置換は隣接文字が英数字または `_` の場合はスキップされ、単語内部の `s` を誤変換しません（`hostname-ap01s` のようなケースは対象）。
-- 行内で対象文字列よりも前に `#` が存在する場合はコメント扱いとして置換対象から除外されます（`newstaging` / `newstg` なども同様）。
 - `stg` 置換は `staging` や `hostname_stg1` など単語内部に埋め込まれたケースは変換されません。
+- 行内で対象文字列よりも前に `#` が存在する場合はコメント扱いとして置換対象から除外されます（`newstaging` / `newstg` なども同様）。
 - バックアップ風のファイル名（例: `_bk`, `_YYYYMMDD_HHMM.bak`）は `--skip-backup-files` 指定時に処理対象から除外されます。
 - いずれのルールでも変換が発生しなかったファイルは以降の適用フェーズに進みません。
 
@@ -129,10 +129,10 @@
 
 ## td-agent 設定ファイル生成スクリプト
 
-環境変数 `TARGET_HOST` にホスト名（例: `line-lb01p`）を設定し、`scripts/generate_td_agent_conf.sh` を実行すると、サフィックスから役割 (`LB` / `AP` / `DB`) を判定し、対応するテンプレートをもとに td-agent 設定ファイルを生成します。
+環境変数 `TARGET_HOST` にホスト名（例: `line-lb01p`）を設定し、`generate_td_agent_conf.sh` を実行すると、サフィックスから役割 (`LB` / `AP` / `DB`) を判定し、対応するテンプレートをもとに td-agent 設定ファイルを生成します。
 
 ```bash
-TARGET_HOST="line-lb01p" ./scripts/generate_td_agent_conf.sh
+TARGET_HOST="line-lb01p" ./generate_td_agent_conf.sh
 ```
 
 出力先:
@@ -156,3 +156,4 @@ TARGET_HOST="line-lb01p" ./scripts/generate_td_agent_conf.sh
 - **ロールバックでバックアップが見つからない**: 変換時に生成された `*_YYYYMMDD_HHMM.bak` が削除されている可能性があります。ファイルを復元するか、バックアップ管理ポリシーを見直してください。
 
 以上を踏まえ、`find_and_extract.sh` は STG→PRD 移行の判定・置換・復旧をワンストップで支援します。ログとバックアップを適切に管理し、ドライランで置換内容を必ず確認してから本適用を実施してください。
+- 行内で対象文字列よりも前に `#` が存在する場合はコメント扱いとして置換対象から除外されます（`newstaging` / `newstg` なども同様）。
