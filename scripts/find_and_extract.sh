@@ -1,15 +1,29 @@
 #!/usr/bin/env bash
 ###############################################################################
-#  search_and_log.sh
+#  find_and_extract.sh
 #
-#  指定したパス以下をスキャンし、特定の文字列を含むファイルを検出するスクリプト。
-#  検出結果は「新基盤定義ログ」と「現行基盤定義ログ」の2種類に出力される。
+#  現行基盤と新基盤(STG/PRD)に関連する定義をスキャンし、ログ出力と
+#  変換(TRANSFORM)・ロールバック(ROLLBACK)をサポートするメンテナンス用スクリプト。
+#  出力ログは current_infra / new_infra_stg / new_infra_prd / other / mixed
+#  の各種別で生成され、詳細は docs/FIND_AND_EXTRACT_TOOL.md を参照。
 #
 # -----------------------------------------------------------------------------
 #  改変履歴
 # -----------------------------------------------------------------------------
 #  バージョン履歴はリポジトリの CHANGELOG.md を参照してください。
 ###############################################################################
+
+# --- エラーハンドリング設定 ---
+set -o pipefail
+set -o errtrace
+set -o functrace
+
+CLEANUP_PERFORMED=0
+CURRENT_COMMAND=""
+PREVIOUS_COMMAND=""
+LAST_NON_EXIT_COMMAND=""
+
+trap 'PREVIOUS_COMMAND=$CURRENT_COMMAND; CURRENT_COMMAND=$BASH_COMMAND; if [[ "$BASH_COMMAND" != exit\ * ]]; then LAST_NON_EXIT_COMMAND=$BASH_COMMAND; fi' DEBUG
 
 # --- スクリプトバージョン ---
 SCRIPT_VERSION="3.5.0.0"
@@ -66,6 +80,7 @@ cleanup() {
     # 退避しておいたロケール設定を復元
     export LANG="$ORIGINAL_LANG"
     export LC_ALL="$ORIGINAL_LC_ALL"
+    CLEANUP_PERFORMED=1
 }
 # trapコマンドは、一時ファイルが確実に作成された後に設定する
 
@@ -83,6 +98,33 @@ handle_interrupt() {
     else
         force_exit
     fi
+}
+
+# --- エラーログ付き後処理 ---
+report_error_and_cleanup() {
+    local exit_status=$?
+    local failed_command=""
+    trap - EXIT
+    trap - TERM
+    if [ "$exit_status" -ne 0 ]; then
+        failed_command=${CURRENT_COMMAND:-$PREVIOUS_COMMAND}
+        if [[ "$failed_command" == exit\ * ]]; then
+            if [ -n "$LAST_NON_EXIT_COMMAND" ]; then
+                failed_command=$LAST_NON_EXIT_COMMAND
+            elif [ -n "$PREVIOUS_COMMAND" ]; then
+                failed_command=$PREVIOUS_COMMAND
+            fi
+        fi
+        if [ -n "$failed_command" ]; then
+            printf "Error: command failed (exit %d): %s\n" "$exit_status" "$failed_command" >&2
+        else
+            printf "Error: script exited with status %d.\n" "$exit_status" >&2
+        fi
+    fi
+    if [ "$CLEANUP_PERFORMED" -eq 0 ]; then
+        cleanup
+    fi
+    exit "$exit_status"
 }
 
 # --- ロケール設定 ---
@@ -367,7 +409,8 @@ fi
 
 CANCEL_REQUESTED=0
 trap handle_interrupt INT
-trap cleanup EXIT TERM
+trap report_error_and_cleanup EXIT
+trap report_error_and_cleanup TERM
 
 # --- オプションと引数処理 ---
 DELETE_LOGS_MODE=0
