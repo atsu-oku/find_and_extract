@@ -1263,7 +1263,7 @@ run_transform() {
         }
         awk -v target_path="$filepath" -f - "$filepath" > "$temp_transformed" 2>"$transform_err" <<'AWK'
 BEGIN {
-    ip_regex = "[0-9]{1,3}(\\.[0-9]{1,3}){3}(/[0-9]{1,2})?"
+    ip_regex = "[0-9]+\\.[0-9]+\\.[0-9]+\\.[0-9]+(/[0-9]+)?"
     changed = 0
 }
 
