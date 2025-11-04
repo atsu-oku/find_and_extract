@@ -1,4 +1,4 @@
-﻿# find_and_extract.sh Shell Variant Spec
+# find_and_extract.sh Shell Variant Spec
 
 The Bash build of `find_and_extract.sh` is the lightweight companion to the migration tooling used by the team. This note summarises how the script is shipped, how it should be executed, and the safety guarantees introduced in v3.6.x.
 
