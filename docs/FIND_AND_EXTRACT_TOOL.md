@@ -142,6 +142,60 @@
 
 - いずれのルールでも変換が発生しなかったファイルは以降の適用フェーズに進みません。
 
+### 拡張のアイデア
+
+- **IP／ホスト名マッピングの外部化**
+  - 例: `maps/ip_map.csv` に `system,stg_ip,prd_ip` 列を用意し、`line_web,172.16.170.72,172.16.160.72` のような行を登録する。
+  - スクリプトは `--map maps/ip_map.csv` を受け取り、CSV を辞書化して該当システムの IP を個別に置換。「CSV に定義があればそれを優先、なければ従来の第三オクテット減算」というフォールバックを実装すれば段階的な移行が容易。
+  - **効果:** 既存の設計書や CMDB に合わせた正確な本番 IP を投入でき、期日ごとのメンテも CSV 更新だけで済む。
+  - **サンプル:**
+
+    ```csv
+    system,stg_ip,prd_ip
+    line_web,172.16.170.72,172.16.160.72
+    line_db,172.16.170.102,172.16.160.102
+    ```
+
+- **サービス別ルールのプロファイル化**
+  - 例: `config/transform_crm.yml` のように YAML で「対象ファイル」「検索文字列」「置換後文字列」を記述。
+
+    ```yaml
+    files:
+      - config/crm/*.php
+    replacements:
+      - find: stg-db.crm.local
+        replace: prd-db.crm.local
+      - find: FUEL_ENV newstaging
+        replace: FUEL_ENV newproduction
+    ```
+
+  - 実行時に `--profile crm` と指定すると当該 YAML を読み込み、記述されたルールのみを適用。Pull Request で設定ファイルを差し替えれば、コード修正なしにサービス別要件へ対応できる。
+  - **効果:** アプリチームが自分たちの差分だけを設定管理でき、レビューや承認プロセスを設定ファイル単位で回せる。
+- **環境別パラメータセットの整備**
+  - 例: `profiles/dev.yaml`、`profiles/stg.yaml`、`profiles/prd.yaml` に IP 範囲や環境変数をまとめる。
+
+    ```yaml
+    ip_prefix: 172.16.170
+    hostname_suffix: stg
+    fuel_env: newstaging
+    modules: [web, batch]
+    ```
+
+  - 実行時に `./find_and_extract.sh transform --apply --env stg` のように指定し、選択した profile を読み込んで実行パラメータを一括切り替え。
+  - **効果:** 1 つのコードベースで DEV/STG/PRD など複数環境面を生成でき、環境追加は profile ファイルを追加するだけ。運用コマンドも `--env` の切り替えで統一できる。
+- **コンポーネント別モジュール化**
+  - Web/AP/Batch/DB/ジョブ管理などのルールをモジュール単位で `modules/web.yml` のように整理。
+
+    ```yaml
+    files: [ /etc/nginx/conf.d/*.conf ]
+    replacements:
+      - find: web-stg
+        replace: web-prd
+    ```
+
+  - 実行時に `--components web,batch` と指定すると該当モジュールの YAML を読み込み、必要なサブセットだけで変換を構成。
+  - **効果:** サービス構成が異なる複数案件でも、モジュールを選択するだけで最適な変換セットを適用できるため、再利用性が高まりテストもモジュール単位で実施しやすい。
+
 備考:
 
 - 行頭が `127.0.0.1` や `::1` のレコードも対象（コメント扱いとなる場合を除く）。
