@@ -23,7 +23,7 @@ LAST_NON_EXIT_COMMAND=""
 trap 'PREVIOUS_COMMAND=$CURRENT_COMMAND; CURRENT_COMMAND=$BASH_COMMAND; if [[ "$BASH_COMMAND" != exit\ * ]]; then LAST_NON_EXIT_COMMAND=$BASH_COMMAND; fi' DEBUG
 
 # --- スクリプトバージョン ---
-SCRIPT_VERSION="3.6.0.0"
+SCRIPT_VERSION="3.6.1.0"
 
 # === 出力ディレクトリを /tmp に固定 ==================================
 # スクリプト名から拡張子(.sh)を除いた部分を取得
@@ -149,6 +149,7 @@ if [[ "$ORIGINAL_LANG" == ja_JP* ]]; then
     MSG_VERBOSE_PREFIX="[詳細] "
     MSG_VERBOSE_SCANNING_FILE="ファイルをスキャン中: "
     MSG_VERBOSE_SKIPPING_BACKUP_FILE="バックアップファイルをスキップ: "
+    MSG_VERBOSE_SKIPPING_NEWSTAGING_FILE="newstaging ディレクトリ配下のファイルをスキップ: "
     MSG_VERBOSE_SKIPPING_BINARY_FILE="バイナリまたはサイズ超過のファイルをスキップ: "
     MSG_VERBOSE_SKIPPING_PROTECTED_FILE="除外対象の設定ファイルをスキップ: "
     MSG_SUMMARY_TOTAL_FILES_SCANNED="スキャンした総ファイル数: %d"
@@ -293,6 +294,7 @@ else
     MSG_VERBOSE_PREFIX="[VERBOSE] "
     MSG_VERBOSE_SCANNING_FILE="Scanning file: "
     MSG_VERBOSE_SKIPPING_BACKUP_FILE="Skipping backup file: "
+    MSG_VERBOSE_SKIPPING_NEWSTAGING_FILE="Skipping newstaging file: "
     MSG_VERBOSE_SKIPPING_BINARY_FILE="Skipping binary/oversized file: "
     MSG_VERBOSE_SKIPPING_PROTECTED_FILE="Skipping protected configuration file: "
     MSG_SUMMARY_TOTAL_FILES_SCANNED="Total files scanned: %d"
@@ -456,6 +458,23 @@ declare -A TRANSFORM_FAILURE_MESSAGES=()
 declare -a TRANSFORM_CHANGED_FILES=()
 declare -a TRANSFORM_FAILED_FILES=()
 declare -a ROLLBACK_TARGETS=()
+
+record_transform_failure() {
+    local path="$1"
+    local message="$2"
+    local existing=""
+    local already_recorded=0
+    for existing in "${TRANSFORM_FAILED_FILES[@]}"; do
+        if [ "$existing" = "$path" ]; then
+            already_recorded=1
+            break
+        fi
+    done
+    if [ $already_recorded -eq 0 ]; then
+        TRANSFORM_FAILED_FILES+=("$path")
+    fi
+    TRANSFORM_FAILURE_MESSAGES["$path"]="$message"
+}
 
 # Bashのバージョンが4未満の場合、エラーを出力して終了
 if [[ -z "${BASH_VERSINFO[0]}" ]] || [[ "${BASH_VERSINFO[0]}" -lt "$MIN_BASH_MAJOR_VERSION" ]]; then
@@ -1191,6 +1210,7 @@ check_newproduction_structure() {
         transform_apply)
             track_transform_failures=1
             allow_copy=1
+            emit_warning=1
             ;;
         *)
             track_transform_failures=1
@@ -1225,46 +1245,35 @@ check_newproduction_structure() {
         newstaging_dir="$config_dir/newstaging"
         newproduction_display="${newproduction_dir%/}/"
         newstaging_display="${newstaging_dir%/}/"
+        local newproduction_needs_copy=0
+        local newprod_ready=0
+        local -a missing_newprod_files=()
+        local newprod_missing_joined=""
 
         if [ -d "$newproduction_dir" ]; then
-            found_dir=1
-            local -a missing_newprod_files=()
             local expected=""
             for expected in "${expected_files[@]}"; do
                 if [ ! -f "$newproduction_dir/$expected" ]; then
                     missing_newprod_files+=("$expected")
                 fi
             done
-            if [ ${#missing_newprod_files[@]} -gt 0 ]; then
-                local joined=""
-                local saved_ifs=$IFS
-                IFS=', '; joined="${missing_newprod_files[*]}"
-                IFS=$saved_ifs
-                status=1
-                if [ "$emit_warning" -eq 1 ]; then
-                    log_warning_message "$(printf "$MSG_TRANSFORM_NEWPROD_FILES_MISSING" "$newproduction_display" "$joined")"
-                fi
-                if [ "$track_transform_failures" -eq 1 ]; then
-                    local existing=""
-                    local already_recorded=0
-                    for existing in "${TRANSFORM_FAILED_FILES[@]}"; do
-                        if [ "$existing" = "$newproduction_dir" ]; then
-                            already_recorded=1
-                            break
-                        fi
-                    done
-                    if [ $already_recorded -eq 0 ]; then
-                        TRANSFORM_FAILED_FILES+=("$newproduction_dir")
-                    fi
-                    TRANSFORM_FAILURE_MESSAGES["$newproduction_dir"]=$(printf "$MSG_TRANSFORM_NEWPROD_FILES_MISSING" "$newproduction_dir" "$joined")
-                fi
+            if [ ${#missing_newprod_files[@]} -eq 0 ]; then
+                newprod_ready=1
+                found_dir=1
                 continue
             fi
-            continue
-        fi
-
-        if [ "$emit_warning" -eq 1 ]; then
-            log_warning_message "$(printf "$MSG_SCAN_NEWPROD_MISSING_WARNING" "$newproduction_display")"
+            newproduction_needs_copy=1
+            local saved_ifs=$IFS
+            IFS=', '; newprod_missing_joined="${missing_newprod_files[*]}"
+            IFS=$saved_ifs
+            if [ "$emit_warning" -eq 1 ]; then
+                log_warning_message "$(printf "$MSG_TRANSFORM_NEWPROD_FILES_MISSING" "$newproduction_display" "$newprod_missing_joined")"
+            fi
+        else
+            newproduction_needs_copy=1
+            if [ "$emit_warning" -eq 1 ]; then
+                log_warning_message "$(printf "$MSG_SCAN_NEWPROD_MISSING_WARNING" "$newproduction_display")"
+            fi
         fi
 
         if [ ! -d "$config_dir" ]; then
@@ -1341,70 +1350,72 @@ check_newproduction_structure() {
             continue
         fi
 
-        if [ "$allow_copy" -eq 1 ]; then
+        if [ "$allow_copy" -eq 1 ] && [ "$newproduction_needs_copy" -eq 1 ]; then
             printf "$MSG_SCAN_NEWPROD_PROMPT" "$newproduction_display" "$newstaging_display" "$newproduction_display"
             local response=""
             read -r response || response=""
             local lower_response=""
-            lower_response=$(echo "$response" | tr '[:upper:]' '[:lower:]')
+            lower_response=$(echo "$response" | tr "[:upper:]" "[:lower:]")
             if [[ "$lower_response" =~ ^(yes|y)$ ]]; then
-                if (cd "$config_dir" 2>/dev/null && cp -a "newstaging" "newproduction"); then
+                if ( cd "$config_dir" 2>/dev/null && rm -rf "newproduction" 2>/dev/null && cp -a "newstaging" "newproduction" ); then
                     printf "%s\n" "$(printf "$MSG_SCAN_NEWPROD_COPY_SUCCESS" "$newstaging_display" "$newproduction_display")"
+                    newprod_ready=1
+                    newproduction_needs_copy=0
+                    newprod_missing_joined=""
+                    missing_newprod_files=()
                     found_dir=1
+                    continue
                 else
                     printf "%s%s\n" "$MSG_ERROR_PREFIX" "$(printf "$MSG_SCAN_NEWPROD_COPY_FAILED" "$newstaging_display" "$newproduction_display")" >&2
-                    status=1
                     if [ "$track_transform_failures" -eq 1 ]; then
-                        local existing=""
-                        local already_recorded=0
-                        for existing in "${TRANSFORM_FAILED_FILES[@]}"; do
-                            if [ "$existing" = "$newproduction_dir" ]; then
-                                already_recorded=1
-                                break
-                            fi
-                        done
-                        if [ $already_recorded -eq 0 ]; then
-                            TRANSFORM_FAILED_FILES+=("$newproduction_dir")
-                        fi
-                        TRANSFORM_FAILURE_MESSAGES["$newproduction_dir"]=$(printf "$MSG_SCAN_NEWPROD_COPY_FAILED" "$newstaging_display" "$newproduction_display")
+                        record_transform_failure "$newproduction_dir" "$(printf "$MSG_SCAN_NEWPROD_COPY_FAILED" "$newstaging_display" "$newproduction_display")"
                     fi
+                    status=1
+                    continue
                 fi
             else
                 printf "%s\n" "$(printf "$MSG_SCAN_NEWPROD_COPY_SKIPPED" "$newstaging_display")"
                 status=1
                 if [ "$track_transform_failures" -eq 1 ]; then
-                    local existing=""
-                    local already_recorded=0
-                    for existing in "${TRANSFORM_FAILED_FILES[@]}"; do
-                        if [ "$existing" = "$newproduction_dir" ]; then
-                            already_recorded=1
-                            break
-                        fi
-                    done
-                    if [ $already_recorded -eq 0 ]; then
-                        TRANSFORM_FAILED_FILES+=("$newproduction_dir")
-                    fi
-                    TRANSFORM_FAILURE_MESSAGES["$newproduction_dir"]=$(printf "$MSG_SCAN_NEWPROD_MISSING_WARNING" "$newproduction_display")
+                    record_transform_failure "$newproduction_dir" "$(printf "$MSG_SCAN_NEWPROD_MISSING_WARNING" "$newproduction_display")"
+                fi
+                continue
+            fi
+        elif [ "$allow_copy" -eq 1 ]; then
+            :
+        else
+            if [ "$newproduction_needs_copy" -eq 1 ]; then
+                status=1
+            fi
+        fi
+
+        if [ "$newprod_ready" -eq 1 ]; then
+            found_dir=1
+            continue
+        fi
+
+        if [ "$newproduction_needs_copy" -eq 1 ]; then
+            if [ ${#missing_newprod_files[@]} -gt 0 ] && [ -z "$newprod_missing_joined" ]; then
+                local saved_ifs=$IFS
+                IFS=', '; newprod_missing_joined="${missing_newprod_files[*]}"
+                IFS=$saved_ifs
+            fi
+            if [ "$track_transform_failures" -eq 1 ]; then
+                if [ -n "$newprod_missing_joined" ]; then
+                    record_transform_failure "$newproduction_dir" "$(printf "$MSG_TRANSFORM_NEWPROD_FILES_MISSING" "$newproduction_dir" "$newprod_missing_joined")"
+                else
+                    record_transform_failure "$newproduction_dir" "$(printf "$MSG_SCAN_NEWPROD_MISSING_WARNING" "$newproduction_display")"
                 fi
             fi
-        else
             status=1
+            continue
         fi
+
+        found_dir=1
     done
 
     if [ "$track_transform_failures" -eq 1 ] && [ "$found_dir" -eq 0 ]; then
-        local existing=""
-        local already_recorded=0
-        for existing in "${TRANSFORM_FAILED_FILES[@]}"; do
-            if [ "$existing" = "$base_dir" ]; then
-                already_recorded=1
-                break
-            fi
-        done
-        if [ $already_recorded -eq 0 ]; then
-            TRANSFORM_FAILED_FILES+=("$base_dir")
-        fi
-        TRANSFORM_FAILURE_MESSAGES["$base_dir"]="$MSG_TRANSFORM_NEWPROD_DIR_NOT_FOUND"
+        record_transform_failure "$base_dir" "$MSG_TRANSFORM_NEWPROD_DIR_NOT_FOUND"
         status=1
     fi
     return $status
@@ -1458,6 +1469,14 @@ run_transform() {
             /etc/grub.d/*|/etc/pki/*|/etc/postfix/*|/etc/services|/etc/systemd/*|/etc/ImageMagick/*|/etc/php-fpm.d/*|/etc/profile.d/*|/etc/ssh/*|*.log|*.LOG)
                 if [ "$VERBOSE_MODE" -eq 1 ]; then
                     printf "%s%s\n" "${MSG_VERBOSE_PREFIX}" "${MSG_VERBOSE_SKIPPING_BACKUP_FILE}$filepath"
+                fi
+                continue
+                ;;
+        esac
+        case "$filepath" in
+            /var/www/com/ipet-ins/*/fuel/app/config/newstaging/*)
+                if [ "$VERBOSE_MODE" -eq 1 ]; then
+                    printf "%s%s\n" "${MSG_VERBOSE_PREFIX}" "${MSG_VERBOSE_SKIPPING_NEWSTAGING_FILE}$filepath"
                 fi
                 continue
                 ;;

@@ -1,5 +1,6 @@
 # find_and_extract.sh Version History
 
+- v3.6.1.0 (2025-11-04): newstaging 配下のファイルを変換対象から除外し、--apply 時は newstaging を newproduction に上書きコピーしてから PRD 変換するよう改善。newproduction 構成チェックと警告出力を調整。
 - v3.6.0.0 (2025-11-04): /var/www/com/ipet-ins 配下の newproduction/newstaging 構成を検証し、不足ファイル通知と newstaging→newproduction コピー確認を調整。警告ログの出力を追加。
 - v3.5.1.0 (2025-10-30): ログパスに含まれる staging/production を新基盤判定へ再分類し、環境メッセージを拡充。
 - v3.5.0.0 (2025-10-30): バックアップファイルを `*_YYYYMMDD_HHMM.bak` 形式へ統一し、混在定義ログの出力とバックアップファイル検出の拡張、ループバック行を含む newstaging/newstg 置換を強化。
