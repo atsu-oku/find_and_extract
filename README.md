@@ -1,45 +1,29 @@
-# find_and_extract Tool
+﻿# find_and_extract Tool
 
-`find_and_extract.sh` is a standalone STG-to-PRD inspection and remediation helper for Linux guests. The script scans a supplied directory tree, reports staging artefacts, and offers in-place transforms plus rollback support.
+`find_and_extract.sh` lets operators audit staging artefacts, convert them to production values, and roll changes back safely. This directory contains the Bash CLI, documentation, schemas, and helper scripts that accompany the tool.
 
-## Contents
+## Repository Layout
 
-- `find_and_extract.sh` — main CLI with `scan`, `transform`, and `rollback` subcommands.
-- `generate_td_agent_conf.sh` — td-agent configuration generator per host role.
-- `CHANGELOG.md` — release history for the shell tool.
-- `docs/` — operator guide and enhancement notes.
-- `schemas/find_and_extract_schema.json` — JSON schema describing CLI options and transform results.
+- `find_and_extract.sh` – main Bash entry point (`scan`, `transform`, `rollback`).
+- `CHANGELOG.md` – release timeline.
+- `docs/` – operator guide (`FIND_AND_EXTRACT_TOOL.md`) and lightweight spec (`PROJECT_SPEC_SH.md`).
+- `schemas/` – JSON schema for CLI options and transform output.
+- `generate_td_agent_conf.sh` – td-agent configuration helper script.
 
-## Usage
+## CLI Usage
 
 ```bash
 ./find_and_extract.sh scan /etc
-./find_and_extract.sh transform --dry-run /etc
+./find_and_extract.sh transform --dry-run /var
 ./find_and_extract.sh transform --apply /var
-./find_and_extract.sh rollback --file /etc/hosts /tmp/<user>/find_and_extract/<host>_<ts>_transform.log
+./find_and_extract.sh rollback --file /etc/hosts \
+    /tmp/$USER/find_and_extract/$(hostname)_<timestamp>_transform.log
 ```
 
-See `docs/PROJECT_SPEC_SH.md` and `docs/FIND_AND_EXTRACT_TOOL.md` for detailed behaviour, safety checks, and rollback guidance.
+Highlights:
 
-## td-agent configuration helper
+- `scan` is read-only and reports staging vs. production signatures.
+- `transform --dry-run` previews replacements. `--apply` now prompts to clone `fuel/app/config/newstaging/` into `newproduction/` (when needed) and only then applies PRD substitutions, writing backups and a rollback log.
+- `rollback` consumes the transform log and restores the recorded backups. Use `--file` to limit the scope.
 
-Export `TARGET_HOST` with the node name (e.g. `line-lb01p`) and run the generator:
-
-```bash
-TARGET_HOST="line-lb01p" ./generate_td_agent_conf.sh
-```
-
-The script infers `LB` / `AP` / `DB` from the hostname suffix, expands the matching templates, and writes:
-
-- Aggregator側設定: `./td-agent_${TARGET_HOST}.conf`
-- 送信側設定: `./td-agent_sender_${TARGET_HOST}.conf`
-
-Provide `SERVICE_SLUG_OVERRIDE` if the domain slug portion should differ from the hostname prefix.
-
-Environment overrides for the sender template:
-
-- `FORWARD_HOST` / `FORWARD_PORT` – forward destination (defaults `172.16.161.21:24224`)
-- `POS_DIR` – directory for td-agent position files (default `/var/log/td-agent/pos`)
-- `NGINX_LOG_DIR`, `APACHE_LOG_DIR`, `APP_LOG_DIR`, `MYSQL_LOG_DIR`, `REDIS_LOG_DIR`
-
-If the hostname suffix does not map to `-lb`, `-ap`, or `-db`, the generator falls back to a combined template that includes every log block (LB/AP/DB).
+Consult the guides in `docs/` for deeper operational details and rollout procedures.
