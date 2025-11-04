@@ -29,13 +29,9 @@
 ## サブコマンドと用途
 
 | サブコマンド | 主な目的 | 代表的な出力 |
-
 | --- | --- | --- |
-
 | `scan` | ディレクトリ配下のファイルを走査し、現行／新基盤の判定条件に合致した箇所をログ化 | `*_current_infra.log`, `*_new_infra_stg.log`, `*_new_infra_prd.log`, `*_other.log` |
-
 | `transform` | STG 由来の値を PRD 向けに置換。初期状態はドライランで差分のみ確認 | `*_transform_preview.log`（ドライラン時）, `*_transform.log`（適用時） |
-
 | `rollback` | 変換ログ (`*_transform.log`) を読み取り、バックアップから対象ファイルを復元 | 復元状況サマリー（標準出力） |
 
 ## 共通オプション
