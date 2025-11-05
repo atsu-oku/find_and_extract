@@ -825,6 +825,14 @@ should_skip_file_for_processing() {
     local file_size=0
     local mime_encoding=""
     local mime_type=""
+    local filename=""
+    filename=$(basename "$filepath")
+    if [[ "$filename" == *.save ]]; then
+        return 0
+    fi
+    if [[ "$filename" =~ [0-9]{8} ]]; then
+        return 0
+    fi
     if [ ! -f "$filepath" ]; then
         return 1
     fi
@@ -847,60 +855,73 @@ should_skip_file_for_processing() {
     return 1
 }
 
+get_rhel_major_version() {
+    local major=""
+    major=$(rpm -E %rhel 2>/dev/null | tr -d '\r')
+    if [ -z "$major" ] || [ "$major" = "%rhel" ]; then
+        if [ -r /etc/redhat-release ]; then
+            major=$(sed -n 's/.*release[[:space:]]\+\([0-9][0-9]*\).*/\1/p' /etc/redhat-release | head -n1)
+        fi
+    fi
+    if [[ ! "$major" =~ ^[0-9]+$ ]]; then
+        major="7"
+    fi
+    printf '%s\n' "$major"
+}
+
+determine_td_repo_baseurl() {
+    local major
+    major=$(get_rhel_major_version)
+    case "$major" in
+        6)
+            printf '%s\n' "https://td-agent-package-browser.herokuapp.com/3/redhat/6/x86_64"
+            ;;
+        7)
+            printf '%s\n' "https://td-agent-package-browser.herokuapp.com/4/redhat/7/x86_64"
+            ;;
+        9)
+            printf '%s\n' "https://td-agent-package-browser.herokuapp.com/4/redhat/9/x86_64"
+            ;;
+        *)
+            printf '%s\n' "https://td-agent-package-browser.herokuapp.com/4/redhat/7/x86_64"
+            ;;
+    esac
+}
+
 write_td_repo_content() {
     local output_path="$1"
-    local series="$2"
+    local base_url="${2:-$(determine_td_repo_baseurl)}"
     cat > "$output_path" <<EOF
 [treasuredata]
 name=TreasureData
-baseurl=https://packages.treasuredata.com/${series}/redhat/\$releasever/\$basearch
+baseurl=${base_url}
 gpgcheck=1
-gpgkey=https://packages.treasuredata.com/GPG-KEY-td-agent
+gpgkey=https://s3.amazonaws.com/packages.treasuredata.com/GPG-KEY-td-agent
 EOF
 }
 
 check_and_adjust_td_repo_temp() {
     local temp_file="$1"
-    local curl_bin=""
-    local releasever=""
-    local basearch=""
-    local url_v4=""
-    local url_v3=""
-    local probe_path="repodata/repomd.xml"
     TD_REPO_LAST_MESSAGE=""
     TD_REPO_LAST_FAILURE=0
+    local base_url
+    base_url=$(determine_td_repo_baseurl)
+    local status=0
+    local curl_bin=""
+    local probe_url=""
     curl_bin=$(command -v curl || true)
     if [ -z "$curl_bin" ]; then
         TD_REPO_LAST_MESSAGE="$MSG_TRANSFORM_TD_REPO_CURL_NOT_FOUND"
-        return 0
+    else
+        probe_url="${base_url%/}/repodata/repomd.xml"
+        if ! "$curl_bin" --silent --location --fail --head --max-time 10 "$probe_url" >/dev/null 2>&1; then
+            TD_REPO_LAST_MESSAGE="Failed to reach td-agent repository: $probe_url"
+            TD_REPO_LAST_FAILURE=1
+            status=1
+        fi
     fi
-    releasever=$(rpm -E %releasever 2>/dev/null | tr -d '\r')
-    if [ -z "$releasever" ] || [ "$releasever" = "%releasever" ]; then
-        releasever=$(rpm -E %rhel 2>/dev/null | tr -d '\r')
-    fi
-    if [ -z "$releasever" ] || [ "$releasever" = "%rhel" ]; then
-        releasever="unknown"
-    fi
-    basearch=$(rpm -E %basearch 2>/dev/null | tr -d '\r')
-    if [ -z "$basearch" ] || [ "$basearch" = "%basearch" ]; then
-        basearch=$(uname -m 2>/dev/null || echo "x86_64")
-    fi
-    url_v4="https://packages.treasuredata.com/4/redhat/${releasever}/${basearch}"
-    url_v3="https://packages.treasuredata.com/3/redhat/${releasever}/${basearch}"
-    if "$curl_bin" --silent --location --fail --head --max-time 10 "${url_v4}/${probe_path}" >/dev/null 2>&1; then
-
-        # v4 reachable
-        return 0
-    fi
-    if "$curl_bin" --silent --location --fail --head --max-time 10 "${url_v3}/${probe_path}" >/dev/null 2>&1; then
-        write_td_repo_content "$temp_file" "3"
-        TD_REPO_LAST_MESSAGE=$(printf "$MSG_TRANSFORM_TD_REPO_FALLBACK_APPLIED" "${url_v3}")
-        return 1
-    fi
-    write_td_repo_content "$temp_file" "3"
-    TD_REPO_LAST_MESSAGE=$(printf "$MSG_TRANSFORM_TD_REPO_FALLBACK_FAILED" "${url_v4}" "${url_v3}")
-    TD_REPO_LAST_FAILURE=1
-    return 2
+    write_td_repo_content "$temp_file" "$base_url"
+    return $status
 }
 
 # --- filter_grep_output: grepの出力を整形・フィルタリング ---
@@ -1495,7 +1516,7 @@ run_transform() {
                 return 1
             }
 
-            write_td_repo_content "$temp_transformed" "4"
+            write_td_repo_content "$temp_transformed"
             total_files_scanned_transform=$((total_files_scanned_transform + 1))
             if cmp -s "$filepath" "$temp_transformed" 2>/dev/null; then
                 rm -f "$temp_transformed" 2>/dev/null
@@ -1555,33 +1576,21 @@ run_transform() {
         if [[ "$filepath" == */etc/profile ]]; then
             local -a proxy_collect_names=()
             local -a proxy_collect_values=()
-            local proxy_var=""
-            local proxy_value=""
-            for proxy_var in http_proxy https_proxy HTTP_PROXY HTTPS_PROXY; do
-                proxy_value="${!proxy_var:-}"
-                if [ -n "$proxy_value" ]; then
-                    proxy_collect_names+=("$proxy_var")
-                    proxy_value=${proxy_value//\\/\\\\}
-                    proxy_value=${proxy_value//\"/\\\"}
-                    proxy_collect_values+=("$proxy_value")
-                fi
+            local idx=""
+            local default_proxy_value="http://172.16.162.6:3128/"
+            proxy_collect_names=(http_proxy https_proxy HTTP_PROXY HTTPS_PROXY)
+            proxy_collect_values=(
+                "$default_proxy_value"
+                "$default_proxy_value"
+                "$default_proxy_value"
+                "$default_proxy_value"
+            )
+            for idx in "${!proxy_collect_values[@]}"; do
+                local proxy_value="${proxy_collect_values[$idx]}"
+                proxy_value=${proxy_value//\\/\\\\}
+                proxy_value=${proxy_value//\"/\\\"}
+                proxy_collect_values[$idx]="$proxy_value"
             done
-            if [ "${#proxy_collect_names[@]}" -eq 0 ]; then
-                proxy_collect_names=(http_proxy https_proxy HTTP_PROXY HTTPS_PROXY)
-                proxy_collect_values=(
-                    "http://172.16.162.6:3128/"
-                    "http://172.16.162.6:3128/"
-                    "http://172.16.162.6:3128/"
-                    "http://172.16.162.6:3128/"
-                )
-                local idx=""
-                for idx in "${!proxy_collect_values[@]}"; do
-                    proxy_value=${proxy_collect_values[$idx]}
-                    proxy_value=${proxy_value//\\/\\\\}
-                    proxy_value=${proxy_value//\"/\\\"}
-                    proxy_collect_values[$idx]="$proxy_value"
-                done
-            fi
             if [ "${#proxy_collect_names[@]}" -gt 0 ]; then
                 proxy_names_joined=$(printf '%s|' "${proxy_collect_names[@]}")
                 proxy_names_joined=${proxy_names_joined%|}
