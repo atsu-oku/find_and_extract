@@ -1549,10 +1549,68 @@ run_transform() {
             rm -f "$temp_transformed" 2>/dev/null
             return 1
         }
-        awk -v target_path="$filepath" -f - "$filepath" > "$temp_transformed" 2>"$transform_err" <<'AWK'
+        local proxy_names_joined=""
+        local proxy_values_joined=""
+        if [[ "$filepath" == */etc/profile ]]; then
+            local -a proxy_collect_names=()
+            local -a proxy_collect_values=()
+            local proxy_var=""
+            local proxy_value=""
+            for proxy_var in http_proxy https_proxy HTTP_PROXY HTTPS_PROXY; do
+                proxy_value="${!proxy_var:-}"
+                if [ -n "$proxy_value" ]; then
+                    proxy_collect_names+=("$proxy_var")
+                    proxy_value=${proxy_value//\\/\\\\}
+                    proxy_value=${proxy_value//\"/\\\"}
+                    proxy_collect_values+=("$proxy_value")
+                fi
+            done
+            if [ "${#proxy_collect_names[@]}" -eq 0 ]; then
+                proxy_collect_names=(http_proxy https_proxy HTTP_PROXY HTTPS_PROXY)
+                proxy_collect_values=(
+                    "http://172.16.162.6:3128/"
+                    "http://172.16.162.6:3128/"
+                    "http://172.16.162.6:3128/"
+                    "http://172.16.162.6:3128/"
+                )
+                local idx=""
+                for idx in "${!proxy_collect_values[@]}"; do
+                    proxy_value=${proxy_collect_values[$idx]}
+                    proxy_value=${proxy_value//\\/\\\\}
+                    proxy_value=${proxy_value//\"/\\\"}
+                    proxy_collect_values[$idx]="$proxy_value"
+                done
+            fi
+            if [ "${#proxy_collect_names[@]}" -gt 0 ]; then
+                proxy_names_joined=$(printf '%s|' "${proxy_collect_names[@]}")
+                proxy_names_joined=${proxy_names_joined%|}
+                proxy_values_joined=$(printf '%s|' "${proxy_collect_values[@]}")
+                proxy_values_joined=${proxy_values_joined%|}
+            fi
+        fi
+        awk -v target_path="$filepath" -v proxy_names="$proxy_names_joined" -v proxy_values="$proxy_values_joined" -f - "$filepath" > "$temp_transformed" 2>"$transform_err" <<'AWK'
 BEGIN {
     ip_regex = "[0-9]+\\.[0-9]+\\.[0-9]+\\.[0-9]+(/[0-9]+)?"
     changed = 0
+    proxy_enabled = 0
+    proxy_var_count = 0
+    if (target_path ~ /\/etc\/profile$/) {
+        if (proxy_names != "" && proxy_values != "") {
+            proxy_var_count = split(proxy_names, proxy_name_arr, "|")
+            value_count = split(proxy_values, proxy_value_arr, "|")
+            if (proxy_var_count == value_count) {
+                for (i = 1; i <= proxy_var_count; i++) {
+                    proxy_var_order[i] = proxy_name_arr[i]
+                    proxy_var_values[proxy_name_arr[i]] = proxy_value_arr[i]
+                }
+                if (proxy_var_count > 0) {
+                    proxy_enabled = 1
+                }
+            } else {
+                proxy_var_count = 0
+            }
+        }
+    }
 }
 
 function convert_ip(token, arr, base, suffix, i) {
@@ -1583,7 +1641,7 @@ function convert_ip(token, arr, base, suffix, i) {
 
     }
 
-    if (target_path == "/etc/profile" && arr[1] == 172 && arr[2] == 16 && arr[3] == 173) {
+    if (target_path ~ /\/etc\/profile$/ && arr[1] == 172 && arr[2] == 16 && arr[3] == 173) {
         arr[3] = 162
         changed = 1
         return arr[1] "." arr[2] "." arr[3] "." arr[4] suffix
@@ -1671,6 +1729,18 @@ function replace_stg_tokens(str, prefix, suffix, before_char, after_char, result
         line = original_line
     }
 
+    if (proxy_enabled) {
+        line_to_check = line
+        sub(/^[[:space:]]+/, "", line_to_check)
+        for (i = 1; i <= proxy_var_count; i++) {
+            var_name = proxy_var_order[i]
+            regex = "^(export[[:space:]]+)?" var_name "="
+            if (line_to_check ~ regex) {
+                existing_proxy[var_name] = 1
+            }
+        }
+    }
+
     line = rebuild_with_ip(line)
     updated = replace_zero_ns(line)
     if (updated != line) {
@@ -1693,6 +1763,21 @@ function replace_stg_tokens(str, prefix, suffix, before_char, after_char, result
 }
 
 END {
+    if (proxy_enabled) {
+        for (i = 1; i <= proxy_var_count; i++) {
+            var_name = proxy_var_order[i]
+            if (!(var_name in existing_proxy)) {
+                if (!proxy_comment_printed) {
+                    print ""
+                    print "# Proxy settings appended by find_and_extract.sh"
+                    proxy_comment_printed = 1
+                }
+                printf "export %s=\"%s\"\n", var_name, proxy_var_values[var_name]
+                changed = 1
+            }
+        }
+    }
+
     if (changed) {
         exit 0
     }
