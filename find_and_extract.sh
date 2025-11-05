@@ -1428,9 +1428,9 @@ run_transform() {
     else
         printf "%s\n" "$MSG_TRANSFORM_APPLY_NOTICE"
     fi
-    for key in "${!TRANSFORM_TEMP_PATHS[@]}"; do unset 'TRANSFORM_TEMP_PATHS[$key]'; done
-    for key in "${!TRANSFORM_DIFF_PATHS[@]}"; do unset 'TRANSFORM_DIFF_PATHS[$key]'; done
-    for key in "${!TRANSFORM_FAILURE_MESSAGES[@]}"; do unset 'TRANSFORM_FAILURE_MESSAGES[$key]'; done
+    TRANSFORM_TEMP_PATHS=()
+    TRANSFORM_DIFF_PATHS=()
+    TRANSFORM_FAILURE_MESSAGES=()
     TRANSFORM_CHANGED_FILES=()
     TRANSFORM_FAILED_FILES=()
     local total_files_scanned_transform=0
@@ -1439,7 +1439,8 @@ run_transform() {
     local temp_transformed=""
     local diff_file=""
     local change_log=""
-    local host_for_log="$(hostname 2>/dev/null || echo unknown)"
+    local host_for_log
+    host_for_log="$(hostname 2>/dev/null || echo unknown)"
     local transform_diff_log=""
     local preview_timestamp=""
     if [ "$SEARCH_PATH" = "/var" ] || [ "$SEARCH_PATH" = "/var/" ]; then
@@ -1916,7 +1917,12 @@ AWK
     read -r apply_confirmation
     local lower_response
     lower_response=$(echo "$apply_confirmation" | tr '[:upper:]' '[:lower:]')
-    if [[ ! "$lower_response" =~ ^(yes|y)$ ]]; then
+    if [[ "$lower_response" =~ ^(yes|y)$ ]]; then
+        :
+    else
+        if [[ ! "$lower_response" =~ ^(no|n)$ ]]; then
+            printf "%s\n" "$MSG_ERROR_INVALID_INPUT"
+        fi
         printf "%s\n" "$MSG_TRANSFORM_APPLY_CANCELLED"
         printf "%s\n" "$MSG_TRANSFORM_APPLY_SKIPPED"
         return 0
@@ -2149,7 +2155,7 @@ pattern_ip_172_specific_main="172\.([0-9]{1,3})\.${pattern_ip_172_other_third_oc
 pattern_ip_aws_1='172\.29\.([0-9]{1,3})\.([0-9]{1,3})'
 pattern_ip_aws_2='169\.254\.[0-3]\.([0-9]{1,3})'
 pattern_ip_new_prd='172\.16\.16[0-9]\.[0-9]{1,3}'
-pattern_ip_new_stg='172\.16\.(170|171|172|173|174|175|176|177|178|179)\.[0-9]{1,3}'
+pattern_ip_new_stg='172\.16\.17[0-9]\.[0-9]{1,3}'
 pattern_ip_toyosu='172\.17\.([0-9]{1,3})\.([0-9]{1,3})'
 pattern_ip_hb_1='10\.0\.[01]\.([0-9]{1,3})'
 pattern_ip_hb_2='200\.(12[0-7]|1[01][0-9]|[0-9]?[0-9])\.([0-9]{1,3})\.([0-9]{1,3})'
@@ -2163,7 +2169,8 @@ pattern_ip_infra='192\.168\.174\.([0-9]{1,3})'
 hostname_patterns_main=( 'ipetdchq2nd001' 'ipetdc00[12]' 'iptad(?:con001|aud01|mg02)' 'ipetad011(?:_.*)?' 'ipetbkserv00[24]' 'iptpavm0[1245]' 'iptpdns0[12]' '(?:dapp|linp|evep|srmp|mulp|clbp|dlagp|ndpp|pswp|pnrp|mypp|vmap|psop|agcp|vmpp|pfts|crmp|ansp|dwap|dlip|dolp|anap)(?:ap|db|lb)[0-9]{2,}' 'c[a-z]{2,}[0-9]{3}p' '(?:ceset|piifs|niafs|astjb|bstar|confl|cdesk|cdocs|biz|dmp|xdp|ltt|dwa|elk|cesrs|euc|rst|ifo|infox|pbs|cpmve|cprxy|creps|cscgv|shptd|ptl|adssp|appsc|csmtp|clicw|crpmg|kzk|clpas|cndsm|eucpc|kddfs|kmsds|pep|stogw|uilai|uilam)[a-z0-9]*[0-9]{2,}[sp]' 'c(jkns|bgip|fmdw|fmdl|fubi|batc)[0-9]{2,}[sp]' 'cv(csa|rom)[a-z0-9]*[0-9]{2,}[sp]' 'czbbx[0-9]{2,}[sp]' 'iptp(?:eset|hul|if|ci|mi|rm|bp|fs|bk|om|ml|log)[a-z0-9]*' '(?:eik|ndp)pci[0-9]{2,}' '(?:gvrp|drip)lb[0-9]{2,}' 'frntsb[0-9]{2,}' 'dmppts[0-9]{2,}' 'iptdec00[239]' 'ipet-link[0-9]{2,}' 'suppap[0-9]{2,}' 'ipt(?:dsm|ome|vddk|ss|sdpls|pxypac|sdz|ness)[a-z0-9]*' 'welcome-db(?:02)?\.ipet-ins\.com' 'welcome\.ipet-ins\.com' 'TESTDEPLOY' 'mailman' 'ipet-contact' 'ipet-marketing-wiki' 'lb-act' 'iptwork[0-9]{2,}' 'cbtrustvc[0-9]{3,}' 'TEMP_Win10' 'dmp(?:pmb|pci|plb|pap|dts)[0-9]+' '(?:dmp|ltt|biz)(?:p?db|p?ap)[0-9]+' )
 
 # 配列の要素を'|'で結合して、grepで使える単一の正規表現パターンを生成
-new_hostname_pattern_main="\b($(IFS='|'; echo "${hostname_patterns_main[*]}"))\b"
+hostname_patterns_main_joined=$(IFS='|'; printf '%s' "${hostname_patterns_main[*]}")
+new_hostname_pattern_main="\\b(${hostname_patterns_main_joined})\\b"
 
 # 連想配列に、条件名と正規表現パターンを格納
 CURRENT_INFRA_CONDITIONS=(
@@ -2212,8 +2219,10 @@ for pattern in "${hostname_patterns_new_base[@]}"; do
     hostname_patterns_prd+=("$prd_pattern")
 done
 hostname_patterns_prd+=('git0[0-9]+c')
-new_hostname_pattern_stg="\b($(IFS='|'; echo "${hostname_patterns_stg[*]}"))\b"
-new_hostname_pattern_prd="\b($(IFS='|'; echo "${hostname_patterns_prd[*]}"))\b"
+hostname_patterns_stg_joined=$(IFS='|'; printf '%s' "${hostname_patterns_stg[*]}")
+hostname_patterns_prd_joined=$(IFS='|'; printf '%s' "${hostname_patterns_prd[*]}")
+new_hostname_pattern_stg="\\b(${hostname_patterns_stg_joined})\\b"
+new_hostname_pattern_prd="\\b(${hostname_patterns_prd_joined})\\b"
 declare -A NEW_STG_CONDITIONS
 NEW_STG_CONDITIONS=(
     ["IP_new_stg"]="\\b${pattern_ip_new_stg}\\b"
