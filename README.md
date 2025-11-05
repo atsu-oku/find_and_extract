@@ -1,173 +1,152 @@
-# 🛠️ find_and_extract.sh
+# 🛠️ find_and_extract.sh 日本語 README
 
-Automation toolkit for finding staging artefacts, converting them to production-safe values, and rolling changes back without guesswork. Designed for the migration runbooks used by the ops team.
-
----
-
-## 🧭 Table of Contents
-
-1. [Overview](#overview)
-2. [✨ Key Features](#-key-features)
-3. [📂 Repository Structure](#-repository-structure)
-4. [🚀 Quick Start](#-quick-start)
-5. [🧪 Command Reference](#-command-reference)
-6. [🔧 Transform Workflow](#-transform-workflow)
-7. [🛡️ Safety Nets & Exclusions](#-safety-nets--exclusions)
-8. [🗃️ Logs & Artefacts](#-logs--artefacts)
-9. [📚 Related Documentation](#-related-documentation)
-10. [🌐 Localization & Changelog](#-localization--changelog)
+`find_and_extract.sh` は、オンプレ／クラウドが混在する運用環境で STG 向けの設定値を安全に PRD 向けへ変換し、必要に応じてロールバックできるよう設計された Bash スクリプトです。本書は最新版の仕様と運用ポイントを日本語で整理したものです。英語版 README は [`README_EN.md`](README_EN.md) を参照してください。
 
 ---
 
-## Overview
+## 🧭 目次
 
-- **Language / Shell**: Bash 4.0+
-- **Supported hosts**: RHEL / CentOS family, script executed locally
-- **Working dir**: `/tmp/<user>/find_and_extract/` (auto-created, mode 700)
-- **Primary outputs**: scan summaries, transform previews/apply logs, rollback metadata
-
----
-
-## ✨ Key Features
-
-- End-to-end lifecycle:
-  - `scan` 🧭 read-only inventory of staging vs. production markers
-  - `transform` 🔄 preview and apply conversion rules with backups and prompts
-  - `rollback` ⏪ restore files from transform logs
-- `/etc/profile` hygiene 🧼:
-  - Converts staging IP/hostname tokens to PRD values
-  - Appends `http_proxy` / `https_proxy` / `HTTP_PROXY` / `HTTPS_PROXY` with `http://172.16.162.6:3128/` when missing
-- Treasure Data repo regeneration 📦:
-  - Picks CentOS 6 (v3), RHEL 7 (v4), or RHEL 9 (v4) base URLs automatically
-  - Switches GPG key to the S3-hosted location and verifies `repodata/repomd.xml` reachability
-- Sensible defaults 🙌:
-  - Skips editor artefacts (`*.save`, filenames containing `YYYYMMDD`)
-  - Prompts before writing changes; mirrors backups next to originals
+1. [概要](#概要)
+2. [✨ 主な特長](#-主な特長)
+3. [📂 リポジトリ構成](#-リポジトリ構成)
+4. [🚀 クイックスタート](#-クイックスタート)
+5. [🧪 コマンドリファレンス](#-コマンドリファレンス)
+6. [🔧 transform ワークフロー](#-transform-ワークフロー)
+7. [🛡️ 安全策と除外ルール](#-安全策と除外ルール)
+8. [🗃️ ログと生成物](#-ログと生成物)
+9. [📚 関連ドキュメント](#-関連ドキュメント)
+10. [🌐 ローカライズと変更履歴](#-ローカライズと変更履歴)
 
 ---
 
-## 📂 Repository Structure
+## 概要
 
-| Path | Description |
-|------|-------------|
-| `find_and_extract.sh` | CLI entrypoint exposing `scan`, `transform`, `rollback`. |
-| `CHANGELOG.md` / `CHANGELOG_ja.md` | Release timeline (English / Japanese). |
-| `docs/FIND_AND_EXTRACT_TOOL.md` | Exhaustive operator playbook (JP). |
-| `docs/PROJECT_SPEC_SH.md` | Shell variant specification and safety checklist. |
-| `schemas/` | JSON schemas for CLI arguments and output payloads. |
-| `generate_td_agent_conf.sh` | td-agent configuration helper script. |
+- **対象シェル**: Bash 4.0 以上
+- **対応 OS**: RHEL / CentOS 系（ローカル実行）
+- **作業ディレクトリ**: `/tmp/<ユーザー>/find_and_extract/` を自動作成（パーミッション 700）
+- **生成物**: スキャン・差分・適用ログ・ロールバックメタデータなど
 
 ---
 
-## 🚀 Quick Start
+## ✨ 主な特長
+
+- ライフサイクルを 3 サブコマンドで完結:
+  - `scan` 🧭 STG / PRD の痕跡を棚卸し（読み取り専用）
+  - `transform` 🔄 置換内容をプレビュー＆適用。確認プロンプトとバックアップを標準装備
+  - `rollback` ⏪ バックアップファイルから復元
+- `/etc/profile` の自動整備 🧼:
+  - STG 用 IP・ホスト名・`stg` トークンを PRD 向けへ変換
+  - `http_proxy` / `https_proxy` / `HTTP_PROXY` / `HTTPS_PROXY` を `http://172.16.162.6:3128/` に統一して追記（既存値があれば保持）
+- Treasure Data (td-agent) リポジトリ生成 📦:
+  - CentOS 6 ⇒ v3、RHEL/CentOS 7 ⇒ v4、RHEL 9 ⇒ v4 の URL を自動判定
+  - GPG キーを S3 配布版へ更新し、`repodata/repomd.xml` の疎通を `curl --head` で確認
+- 編集途中ファイルを誤変換しない配慮 🙌:
+  - `*.save` や `YYYYMMDD` を含むファイル名を除外
+  - バイナリ／10 MiB 超／バックアップ風のファイルもスキップ
+
+---
+
+## 📂 リポジトリ構成
+
+| パス | 説明 |
+|------|------|
+| `find_and_extract.sh` | CLI 本体（`scan` / `transform` / `rollback`）。 |
+| `CHANGELOG.md` / `CHANGELOG_ja.md` | リリースノート（英語／日本語）。 |
+| `docs/FIND_AND_EXTRACT_TOOL.md` | 詳細な運用ガイド（日本語）。 |
+| `docs/PROJECT_SPEC_SH.md` | シェル版仕様と安全対策。 |
+| `schemas/` | CLI 入力・出力の JSON スキーマ。 |
+| `generate_td_agent_conf.sh` | td-agent 設定ファイル生成ヘルパー。 |
+
+---
+
+## 🚀 クイックスタート
 
 ```bash
 ./find_and_extract.sh scan /etc
 ./find_and_extract.sh transform --dry-run /var
 ./find_and_extract.sh transform --apply /var
-./find_and_extract.sh rollback --file /etc/hosts \
-    /tmp/$USER/find_and_extract/$(hostname)_<timestamp>_transform.log
+./find_and_extract.sh rollback --file /etc/hosts     /tmp/$USER/find_and_extract/$(hostname)_<timestamp>_transform.log
 ```
 
-Before running:
+実行前チェック ✅:
 
-1. ✅ Confirm read access to the target tree and sufficient `/tmp` space.
-2. ✅ Ensure Bash 4+ is available. `curl` is optional but recommended.
-3. ✅ For `--apply`, double-check that writing backups beside originals is acceptable.
-
----
-
-## 🧪 Command Reference
-
-| Subcommand | Purpose | Output Highlights |
-|------------|---------|-------------------|
-| `scan` | Read-only inventory of staging vs. production artefacts. | `<host>_<ts>_{current_infra,new_infra_stg,new_infra_prd,other,mixed}.log` |
-| `transform` | Convert staging tokens to PRD equivalents. Dry-run by default. | `*_transform_preview.log`, `*_transform.log` |
-| `rollback` | Restore files from transform log backups. | Summary on stdout |
-
-### Common Options
-
-- `-v, --verbose` – emit detailed progress logs.
-- `--skip-backup-files` – ignore known backup filenames (`*.bak`, `*~`, `.swp`, etc.).
-- `--dry-run` / `--apply` – control transform mode.
-- `--file <path>` – scope rollback to specific entries.
-- `--deletelogs` – purge `/tmp/<user>/find_and_extract/` logs.
+1. 対象ディレクトリの読み取り権限と `/tmp` の空き容量を確認。
+2. Bash 4 以上が利用可能か（`curl` があれば疎通確認にも活用）。
+3. `--apply` 実行時に `*.bak_<timestamp>` が同ディレクトリへ作成される点を共有。
 
 ---
 
-## 🔧 Transform Workflow
+## 🧪 コマンドリファレンス
 
-1. **Preflight**
-   - When targeting `/var`, validates `/var/www/com/ipet-ins/<system>/fuel/app/config/newproduction/` and records missing artefacts in the warnings log.
-   - Preserves protected configuration files such as `/etc/nginx/nginx.conf` and `/etc/httpd/httpd.conf`.
+| サブコマンド | 想定シナリオ | 主な出力 |
+|--------------|--------------|----------|
+| `scan` | STG/PRD の痕跡を棚卸し（読み取り専用）。 | `<host>_<timestamp>_{current_infra,new_infra_stg,new_infra_prd,other,mixed}.log` |
+| `transform` | STG 値を PRD 向けに置換。既定はドライラン。 | `*_transform_preview.log`, `*_transform.log` |
+| `rollback` | 変換ログをもとに復元。`--file` で対象を限定。 | 復元 / 失敗件数のサマリー |
 
-2. **Candidate selection**
-   - Mirrors `scan` traversal but additionally skips:
-     - Binary or >10 MiB files
-     - Backup-looking names when `--skip-backup-files` is supplied
-     - `*.save` and filenames containing eight-digit dates (`YYYYMMDD`)
+### 主なオプション
 
-3. **Conversion**
-   - Applies IP / hostname / token rewrites via embedded AWK.
-   - `/etc/profile` receives PRD tokens and fixed proxy exports (only when absent).
-   - `/etc/yum.repos.d/td.repo` is regenerated with OS-specific base URLs, S3-hosted GPG key, and connectivity testing (`curl --head`).
-
-4. **Dry-run**
-   - Outputs tidy “As-Is / To-Be” diffs to stdout and logs, ensuring reviewers see every prospective change.
-
-5. **Apply**
-   - Prompts for confirmation (`yes` / `y`). Any other response prints an invalid-input reminder and cancels.
-   - Writes `*_YYYYMMDD_HHMM.bak` backups, restores permissions/ownership, and records every change in `*_transform.log`.
+- `-v, --verbose` : 詳細進捗（スキップ理由など）を出力。
+- `--skip-backup-files` : `*.bak`, `*.old`, `*~`, `.swp` 等を除外。
+- `--dry-run` / `--apply` : `transform` の実行モード。
+- `--file <path>` : `rollback` の対象を限定。
+- `--deletelogs` : `/tmp/<ユーザー>/find_and_extract/` のログを削除。
 
 ---
 
-## 🛡️ Safety Nets & Exclusions
+## 🔧 transform ワークフロー
 
-- Protected files: nginx / Apache configs and other ACL-sensitive paths are never altered.
-- Explicit skips:
-  - Binary files, oversize files (>10 MiB)
-  - Backup or editor artefacts (including `.save` and `YYYYMMDD` patterns)
-- Interrupt handling:
-  - First `Ctrl+C` → cleanup of temp files, message printed.
-  - Second `Ctrl+C` → forced exit after additional warning.
-- td-agent repo regeneration uses `curl` to detect network issues and surfaces the status for operators.
+1. **事前チェック** – `/var` 配下の場合、`fuel/app/config/newproduction/` の必須ファイルを確認し、不足は警告ログへ記録。保護対象（nginx / Apache 設定など）は最初から除外。
+2. **対象ファイル抽出** – `scan` と同様に列挙し、バイナリ／大容量、バックアップ、`*.save`、`YYYYMMDD` を含むファイル名を除外。
+3. **変換処理** – AWK で IP・ホスト名・トークンを置換。`/etc/profile` は固定プロキシを追記しつつ STG トークンを PRD 化。`/etc/yum.repos.d/td.repo` は OS 判定で URL を切り替え、S3 配布の GPG キーへ更新し、`curl --head` で疎通確認。
+4. **ドライラン** – `As-Is / To-Be` の整形 diff を標準出力と `*_transform_preview.log` に記録。
+5. **本適用 (`--apply`)** – 対象件数を提示し、`yes` / `y` 以外はキャンセル。`*.bak_<timestamp>` を生成し、権限・所有者・グループを復元したうえで適用。結果は `*_transform.log` へ保存。
 
 ---
 
-## 🗃️ Logs & Artefacts
+## 🛡️ 安全策と除外ルール
 
-| File | Description |
-|------|-------------|
-| `<host>_<ts>_current_infra.log` etc. | Categorised scan results. |
-| `<host>_<ts>_warnings.log` | Validation / connectivity warnings. |
-| `<host>_<ts>_transform_preview.log` | Dry-run diff summaries. |
-| `<host>_<ts>_transform.log` | Applied change manifest with backup metadata. |
-| `*_YYYYMMDD_HHMM.bak` | Backups created during `--apply`. |
-
-Use `--deletelogs` for log housekeeping.
+- nginx / Apache 設定などの重要ファイルは常に除外。
+- 1 回目の `Ctrl+C` で一時ファイルを削除し、メッセージを表示。2 回目の割り込みで強制終了。
+- td-agent リポジトリ生成では `curl` の結果を表示し、疎通可否を明示。
 
 ---
 
-## 📚 Related Documentation
+## 🗃️ ログと生成物
 
-- 📝 Operator Guide (JP): [`docs/FIND_AND_EXTRACT_TOOL.md`](docs/FIND_AND_EXTRACT_TOOL.md)
-- 📘 Shell Variant Spec (JP): [`docs/PROJECT_SPEC_SH.md`](docs/PROJECT_SPEC_SH.md)
-- 🧰 td-agent Config Helper: [`generate_td_agent_conf.sh`](generate_td_agent_conf.sh)
-- 📦 JSON Schemas: [`schemas/`](schemas/)
+| ファイル | 役割 |
+|----------|------|
+| `<host>_<timestamp>_current_infra.log` など | スキャン結果（カテゴリ別）。 |
+| `<host>_<timestamp>_warnings.log` | 構成不足や疎通失敗の警告。 |
+| `<host>_<timestamp>_transform_preview.log` | ドライラン差分。 |
+| `<host>_<timestamp>_transform.log` | 本適用結果とバックアップ情報。 |
+| `*_YYYYMMDD_HHMM.bak` | `--apply` 時に生成されるバックアップ。 |
+
+`--deletelogs` で `/tmp/<ユーザー>/find_and_extract/` 配下のログを一括削除できます。
 
 ---
 
-## 🌐 Localization & Changelog
+## 📚 関連ドキュメント
 
-- English changelog: [`CHANGELOG.md`](CHANGELOG.md)
-- Japanese changelog: [`CHANGELOG_ja.md`](CHANGELOG_ja.md)
-- Japanese README: [`README_ja.md`](README_ja.md)
+- 📝 運用ガイド (JP): [`docs/FIND_AND_EXTRACT_TOOL.md`](docs/FIND_AND_EXTRACT_TOOL.md)
+- 📘 シェル版仕様: [`docs/PROJECT_SPEC_SH.md`](docs/PROJECT_SPEC_SH.md)
+- 🧰 td-agent helper: [`generate_td_agent_conf.sh`](generate_td_agent_conf.sh)
+- 📦 JSON スキーマ: [`schemas/`](schemas/)
 
-Latest updates (v3.6.3.0, 2025-11-05) cover:
+英語版 README は [`README_EN.md`](README_EN.md) です。
 
-- `/etc/profile` proxy normalisation
-- td-agent repository refresh logic with connectivity probes
-- Expanded file exclusion rules to avoid editor/temporary artefacts
+---
 
-Happy automating! 🚀
+## 🌐 ローカライズと変更履歴
 
+- 英語 changelog: [`CHANGELOG.md`](CHANGELOG.md)
+- 日本語 changelog: [`CHANGELOG_ja.md`](CHANGELOG_ja.md)
+- 英語 README: [`README_EN.md`](README_EN.md)
+
+**最新版 (v3.6.3.0 / 2025-11-05)** の主な更新:
+
+- `/etc/profile` のプロキシ固定化と STG トークン変換
+- Treasure Data リポジトリ URL の自動切り替えと疎通確認
+- 編集途中ファイルを対象外とする除外ルールの追加
+
+運用自動化にぜひご活用ください！🚀
