@@ -1,5 +1,11 @@
 # find_and_extract.sh Version History
 
+## v3.6.3.0 – 2025-11-05
+
+- `/etc/profile` transform now always converts staging tokens to production equivalents and appends constant proxy exports pointing to `http://172.16.162.6:3128/`.
+- `.save` files and filenames containing an eight-digit date stamp are excluded from processing.
+- Treasure Data repo generation now selects OS-specific URLs (CentOS6, RHEL7, RHEL9) and stores the new GPG key location after performing a connectivity check.
+
 ## v3.6.1.0 — 2025-11-04
 
 - Treat `fuel/app/config/newstaging/` as the canonical staging snapshot. Transformation now skips those files entirely and, during `transform --apply`, asks whether the directory should be copied over `newproduction/` before any PRD substitutions run.

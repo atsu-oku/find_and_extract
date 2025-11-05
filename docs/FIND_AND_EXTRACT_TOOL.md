@@ -96,9 +96,11 @@
 
 2. **ファイル処理フロー**
 
-   - `scan` と同じ要領でファイルを列挙し、バイナリ／バックアップを除外。
+   - `scan` と同じ要領でファイルを列挙し、バイナリ／バックアップに加えて `*.save`、およびファイル名に 8 桁の年月日（`YYYYMMDD`）を含むものを自動で除外。
 
-   - 各ファイルに対し AWK スクリプトで置換を試行し、変更があった場合のみ一時ファイルと差分を記録。
+   - 各ファイルに対し AWK スクリプトで置換を試行し、変更があった場合のみ一時ファイルと差分を記録。`/etc/profile` は STG 向け IP／ホスト名トークンを PRD 値に変換し、固定のプロキシ変数 (`http_proxy` / `https_proxy` / `HTTP_PROXY` / `HTTPS_PROXY`) を `http://172.16.162.6:3128/` に統一して追記する。
+
+   - `td-agent` リポジトリ (`/etc/yum.repos.d/td.repo`) は OS のメジャーバージョンに応じた URL（CentOS6 / RHEL7 / RHEL9）と S3 上の GPG キーに書き換え、適用前に疎通確認 (`curl --head`) を実施。
 
    - ドライラン時は差分プレビューを標準出力に整形（`As-Is` / `To-Be` セクション）し、同内容を `*_transform_preview.log` に出力。
 
@@ -114,7 +116,7 @@
 
    - 変換に失敗したファイルは `失敗したファイル` セクションに列挙し、詳細メッセージを添付。
 
-   - `td-agent` リポジトリ設定 (`/etc/yum.repos.d/td.repo`) については v4→v3 のフォールバック処理を内蔵し、結果を標準出力へ通知。
+   - `td-agent` リポジトリ設定 (`/etc/yum.repos.d/td.repo`) は実行ホストのメジャーバージョンに応じた URL（CentOS6: v3、RHEL7: v4、RHEL9: v4）を選択し、S3 公開の GPG キーと合わせて疎通確認結果を通知。
 
    - 途中で `Ctrl+C` を受けた場合は既存の一時ファイルを削除し、`処理を中断しました` と表示。
 
@@ -127,6 +129,7 @@
 | `0Ns` 表記 | `0` + 数字列 + `s` が単語として現れ、直後が英数字/`_` 以外 | `s` を `p` に置換し、桁構成はそのまま維持 | `01s` → `01p` |
 | `stg` トークン | 行頭が IP で始まる行／`Hostname=`／`PRETTY_HOSTNAME=` 行に含まれる単語としての `stg` | `prd` に置換（周囲が非英数字で区切られている場合のみ） | `Hostname=web-stg` → `Hostname=web-prd` |
 | 新STGキーワード | 行内の `newstaging` または `newstg`（コメント除外後） | それぞれ `newproduction` / `newprd` に置換 | `SetEnv FUEL_ENV newstaging` → `SetEnv FUEL_ENV newproduction` |
+| プロキシ追記 | `/etc/profile` | `http_proxy` / `https_proxy` / `HTTP_PROXY` / `HTTPS_PROXY` を `http://172.16.162.6:3128/` で統一して追加（既存値があればスキップ） | 追記: `export http_proxy="http://172.16.162.6:3128/"` |
 
 補足:
 

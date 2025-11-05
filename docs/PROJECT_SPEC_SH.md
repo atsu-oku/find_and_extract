@@ -29,6 +29,9 @@ The Bash build of `find_and_extract.sh` is the lightweight companion to the migr
 - `/etc/nginx/nginx.conf` and `/etc/httpd/httpd.conf` are always skipped.
 - When targeting `/var`, the script validates `/var/www/com/ipet-ins/<system>/fuel/app/config/newproduction/`. Missing directories or files raise warnings and are written to the warnings log.
 - v3.6.1.0 treats `fuel/app/config/newstaging/` as canonical staging data: it is never edited directly. In `transform --apply` the user may approve copying `newstaging/` to `newproduction/` before PRD substitutions run.
+- `/etc/profile` gets staging tokens rewritten to production and a fixed proxy set (`http://172.16.162.6:3128/`) appended whenever those exports are missing.
+- `transform` ignores files that look like editor artefacts (e.g. `*.save`, names containing `YYYYMMDD`).
+- Treasure Data repos (`/etc/yum.repos.d/td.repo`) are regenerated with OS-specific URLs and a connectivity probe to `repodata/repomd.xml`; the GPG key now comes from `https://s3.amazonaws.com/packages.treasuredata.com/GPG-KEY-td-agent`.
 - Each applied change creates a `*.bak_<timestamp>` backup next to the original and appends an entry to the transform log, enabling reliable rollback.
 
 ## Rollback Quick Steps

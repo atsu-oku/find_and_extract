@@ -23,6 +23,11 @@
 Highlights:
 
 - `scan` is read-only and reports staging vs. production signatures.
+- `transform --dry-run` previews replacements. `--apply` can clone `fuel/app/config/newstaging/` into `newproduction/` before applying PRD substitutions, rewrites `/etc/profile` staging markers to production equivalents, appends fixed proxy exports (`http://172.16.162.6:3128/`), and refreshes `/etc/yum.repos.d/td.repo` with OS-specific Treasure Data repositories after a connectivity probe. Files that look like editor backups (`*.save`) or include an eight-digit date token are skipped automatically.
+- `rollback` consumes the transform log and restores the recorded backups. Use `--file` to limit the scope.
+
+
+- `scan` is read-only and reports staging vs. production signatures.
 - `transform --dry-run` previews replacements. `--apply` now prompts to clone `fuel/app/config/newstaging/` into `newproduction/` (when needed) and only then applies PRD substitutions, writing backups and a rollback log.
 - `rollback` consumes the transform log and restores the recorded backups. Use `--file` to limit the scope.
 
