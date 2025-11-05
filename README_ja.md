@@ -1,131 +1,173 @@
-# find_and_extract.sh 日本語 README
+# 🛠️ find_and_extract.sh 日本語 README
 
-`find_and_extract.sh` は、オンプレ／クラウド混在環境で運用される Web システムの STG 設定値を安全に PRD 向けへ変換し、必要に応じてロールバックできるよう開発された Bash スクリプトです。英語版 README と CHANGELOG を補完する目的で、最新仕様を日本語で詳細にまとめています。
-
----
-
-## 1. 前提条件と配布形態
-
-- **対応 OS / Shell**: RHEL・CentOS 系で Bash 4 以上が利用可能であること。
-- **配布方法**: `repo/` ディレクトリ内の `find_and_extract.sh` を対象サーバにコピーし、ローカルで実行します（外部依存は `curl` のみ。未インストールでも実行は可能ですが、td-agent リポジトリの疎通確認がスキップされます）。
-- **作業ディレクトリ**: 実行ユーザー毎に `/tmp/<ユーザー名>/find_and_extract/` を自動作成し、パーミッション 700 で管理します。ドライランの差分や本番適用結果、警告ログもここに保存されます。
+`find_and_extract.sh` は、オンプレ／クラウドが混在する運用環境で、STG 向けの設定値を安全に PRD 向けへ変換し、必要に応じてロールバックできるよう設計された Bash スクリプトです。ここでは英語 README の内容を補完しつつ、日本語で最新版の仕様を整理しています。
 
 ---
 
-## 2. 同梱ファイル
+## 🧭 目次
 
-| ファイル | 概要 |
-|----------|------|
-| `find_and_extract.sh` | CLI 本体。`scan` / `transform` / `rollback` の 3 サブコマンドを提供。 |
-| `CHANGELOG.md` / `CHANGELOG_ja.md` | 変更履歴の英語版 / 日本語版。 |
-| `docs/FIND_AND_EXTRACT_TOOL.md` | 運用ガイド（日本語、詳細版）。 |
-| `docs/PROJECT_SPEC_SH.md` | シェル版の仕様書（要件と安全対策の概要）。 |
-| `schemas/` | CLI オプションや出力 JSON のスキーマ。 |
-| `generate_td_agent_conf.sh` | td-agent 設定ファイル生成用スクリプト。 |
+1. [概要](#概要)
+2. [✨ 主な特長](#-主な特長)
+3. [📂 リポジトリ構成](#-リポジトリ構成)
+4. [🚀 クイックスタート](#-クイックスタート)
+5. [🧪 コマンドリファレンス](#-コマンドリファレンス)
+6. [🔧 transform ワークフロー](#-transform-ワークフロー)
+7. [🛡️ 安全策と除外ルール](#-安全策と除外ルール)
+8. [🗃️ ログと生成物](#-ログと生成物)
+9. [📚 関連ドキュメント](#-関連ドキュメント)
+10. [🌐 ローカライズと変更履歴](#-ローカライズと変更履歴)
 
 ---
 
-## 3. クイックスタート
+## 概要
+
+- **対象シェル**: Bash 4.0 以上
+- **想定 OS**: RHEL / CentOS 系（ローカル実行）
+- **作業ディレクトリ**: `/tmp/<ユーザー>/find_and_extract/`（自動作成・パーミッション 700）
+- **主な成果物**: スキャン結果、差分プレビュー、本番適用ログ、ロールバック用メタデータ
+
+---
+
+## ✨ 主な特長
+
+- サブコマンドでライフサイクルを一括管理:
+  - `scan` 🧭 STG / PRD の痕跡を棚卸し
+  - `transform` 🔄 置換内容をプレビュー＆適用（バックアップ込み）
+  - `rollback` ⏪ バックアップから復元
+- `/etc/profile` の自動整備 🧼:
+  - STG 用 IP・ホスト名・`stg` トークンを PRD 向けへ置換
+  - `http_proxy` / `https_proxy` / `HTTP_PROXY` / `HTTPS_PROXY` を固定ゲートウェイ `http://172.16.162.6:3128/` で追記（未定義時）
+- Treasure Data (td-agent) リポジトリ生成 📦:
+  - CentOS 6 ⇒ v3 URL、RHEL 7 ⇒ v4 URL、RHEL 9 ⇒ v4 URL を自動判定
+  - GPG キーを S3 配布版へ切り替え、`repodata/repomd.xml` に疎通チェック
+- 実用的なデフォルト 🙌:
+  - `*.save` や `YYYYMMDD` を含むファイル名を除外（エディタ一時ファイル対策）
+  - `--apply` 時は必ず確認プロンプトとバックアップを実施
+
+---
+
+## 📂 リポジトリ構成
+
+| パス | 説明 |
+|------|------|
+| `find_and_extract.sh` | CLI 本体（`scan` / `transform` / `rollback`）。 |
+| `CHANGELOG.md` / `CHANGELOG_ja.md` | リリースノート（英語 / 日本語）。 |
+| `docs/FIND_AND_EXTRACT_TOOL.md` | 詳細な運用ガイド（日本語）。 |
+| `docs/PROJECT_SPEC_SH.md` | シェル版仕様・安全対策のまとめ。 |
+| `schemas/` | CLI 入力・出力の JSON スキーマ。 |
+| `generate_td_agent_conf.sh` | td-agent 設定ファイル生成ヘルパー。 |
+
+---
+
+## 🚀 クイックスタート
 
 ```bash
 ./find_and_extract.sh scan /etc
 ./find_and_extract.sh transform --dry-run /var
 ./find_and_extract.sh transform --apply /var
-./find_and_extract.sh rollback --file /etc/hosts \
-    /tmp/$USER/find_and_extract/$(hostname)_<timestamp>_transform.log
+./find_and_extract.sh rollback --file /etc/hosts     /tmp/$USER/find_and_extract/$(hostname)_<timestamp>_transform.log
 ```
 
-実行前に以下を確認してください。
+実行前チェック ✅:
 
-1. 対象ディレクトリに読み取り権限がある。
-2. 実行ユーザーが `/tmp` 配下に 700 ディレクトリを作成できる。
-3. `transform --apply` を実行する場合は、バックアップ（`*_YYYYMMDD_HHMM.bak`）が生成されるため十分なディスク容量がある。
-
----
-
-## 4. サブコマンド詳細
-
-| コマンド | 想定シナリオ | 代表的な出力 |
-|----------|--------------|--------------|
-| `scan` | STG 定義・PRD 定義・混在ファイルの棚卸し。読み取り専用。 | `<host>_<timestamp>_{current_infra,new_infra_stg,new_infra_prd,other,mixed}.log` |
-| `transform` | STG 用の設定を PRD 向けに置換。標準はドライラン。`--apply` で実際の書き換えとバックアップを実施。 | `*_transform_preview.log`（ドライラン） / `*_transform.log`（適用結果） |
-| `rollback` | `transform` で記録したバックアップログをもとにファイルを復旧。`--file` で対象を絞り込み可能。 | 成功 / 失敗件数のサマリー（標準出力） |
-
-### 代表的なオプション
-
-- `-v/--verbose` : 詳細ログを出力（スキップ対象の理由などを明示）。
-- `--skip-backup-files` : `*.bak`, `*.old`, `*~`, `.swp` などバックアップ／編集履歴を想定したファイルを除外。
-- `--dry-run`（既定） / `--apply` : `transform` モードの実行方式を指定。
-- `--file <path>` : `rollback` で特定ファイルのみ復旧する際に使用。
-- `--deletelogs` : `/tmp/<ユーザー>/find_and_extract/` 配下のログ一式を削除。
+1. 対象ディレクトリへの読み取り権限を確認する。
+2. `/tmp` に十分な空き容量があるか確かめる。
+3. Bash 4 以上が利用可能か確認し、`curl` がある場合は疎通確認にも利用。
+4. `--apply` 実行時は、同ディレクトリに `*.bak_<timestamp>` バックアップが作成されることを周知しておく。
 
 ---
 
-## 5. `transform` モードでの処理フロー
+## 🧪 コマンドリファレンス
 
-1. **事前検証**
-   - 対象が `/var` の場合、`/var/www/com/ipet-ins/<system>/fuel/app/config/newproduction/` の存在と構成ファイルをチェック。不足があれば警告ログに記載。
-   - Fuel の設定以外を不要に触らないよう、保護対象（`/etc/nginx/nginx.conf`, `/etc/httpd/httpd.conf` など）を除外。
+| サブコマンド | 想定シナリオ | 主な出力 |
+|--------------|--------------|----------|
+| `scan` | STG / PRD の痕跡を棚卸し（読み取り専用）。 | `<host>_<timestamp>_{current_infra,new_infra_stg,new_infra_prd,other,mixed}.log` |
+| `transform` | STG 値を PRD に置換。既定はドライラン。 | `*_transform_preview.log`, `*_transform.log` |
+| `rollback` | 変換ログをもとに復元。`--file` で絞り込み可。 | 復元 / 失敗件数のサマリー |
 
-2. **対象ファイルの絞り込み**
-   - `scan` と同じロジックでファイルを列挙し、バイナリ・バックアップ風ファイルに加え、`*.save` や `YYYYMMDD`（8 桁の年月日）を含むファイル名を自動で除外。エディタの一時ファイルや日付付きバックアップを誤更新しないよう配慮しています。
+### 主なオプション
+
+- `-v, --verbose` : 詳細進捗を出力（スキップ理由など）。
+- `--skip-backup-files` : `*.bak`, `*.old`, `*~`, `.swp` 等を除外。
+- `--dry-run` / `--apply` : `transform` 実行モードを指定。
+- `--file <path>` : `rollback` で対象を限定。
+- `--deletelogs` : `/tmp/<ユーザー>/find_and_extract/` 配下のログを削除。
+
+---
+
+## 🔧 transform ワークフロー
+
+1. **事前チェック**
+   - `/var` 配下が対象なら、`fuel/app/config/newproduction/` の有無と必須ファイルを検証し、欠損をワーニングログへ出力。
+   - `/etc/nginx/nginx.conf` や `/etc/httpd/httpd.conf` など保護対象は最初から除外。
+
+2. **対象ファイルの抽出**
+   - `scan` の仕組みでファイルを列挙しつつ、以下を除外:
+     - バイナリ／10 MiB を超えるファイル
+     - バックアップファイル（`--skip-backup-files` 時）
+     - `*.save` および 8 桁日付 (`YYYYMMDD`) を含むファイル名
 
 3. **変換処理**
-   - AWK を用いて STG → PRD 置換を実施。変換が発生したファイルのみ一時ファイルへ出力し、`diff -u` で差分を保存。
-   - **`/etc/profile` の特例**: STG 用 IP（第 3 オクテット 170〜179, 173 → 162）や `Hostname=xxx-stg` といったトークンを PRD 表記へ変換します。同時に `http_proxy` / `https_proxy` / `HTTP_PROXY` / `HTTPS_PROXY` が存在しなければ `http://172.16.162.6:3128/` を輸出する `export` 行を追記します。
-   - **`/etc/yum.repos.d/td.repo` の再生成**: OS のメジャーバージョンを判定し、以下の URL を選択します。
-     - CentOS 6 系: `https://td-agent-package-browser.herokuapp.com/3/redhat/6/x86_64`
-     - RHEL / CentOS 7 系: `https://td-agent-package-browser.herokuapp.com/4/redhat/7/x86_64`
-     - RHEL 9 系: `https://td-agent-package-browser.herokuapp.com/4/redhat/9/x86_64`
-     - それ以外: 7 系相当（運用の標準 OS が RHEL7 であるため）
-     書き換え前に `repodata/repomd.xml` への HEAD リクエストで疎通確認を行い、結果を標準出力に通知します。GPG キーは `https://s3.amazonaws.com/packages.treasuredata.com/GPG-KEY-td-agent` に更新済みです。
+   - 組み込み AWK で IP／ホスト名／トークンの置換を実施。
+   - `/etc/profile` では STG トークンを PRD 化し、固定プロキシを追記（既存値は尊重）。
+   - `/etc/yum.repos.d/td.repo` は OS メジャーバージョンで URL を切り替え、S3 配布の GPG キーへ更新。`curl --head` で `repodata/repomd.xml` の疎通を確認し、結果を標準出力に表示。
 
 4. **ドライラン**
-   - `As-Is / To-Be` 形式で差分を標準出力に表示し、`*_transform_preview.log` に保存。適用候補が無い場合は「変更対象のファイルは見つかりませんでした。」と表示されます。
+   - `As-Is / To-Be` の整形 diff を標準出力と `*_transform_preview.log` に記録。
 
 5. **本適用 (`--apply`)**
-   - 変換対象数を表示し、`yes` / `y` で承認。その他（`no`, `maybe` 等）の入力は不正として扱い、メッセージを表示したうえでキャンセルします。
-   - 適用時は `*.bak_<timestamp>` のバックアップを作成し、元のパーミッション・所有者・グループを復元してから差分を反映。結果は `*_transform.log` にタブ区切りで記録され、`rollback` の入力として利用できます。
+   - 変換対象件数を表示し、`yes` / `y` 以外の入力は無効としてキャンセル。
+   - 反映前に `*.bak_<timestamp>` を生成し、パーミッション・所有者・グループを元に戻してから新しい内容を書き込み。結果を `*_transform.log` に追記。
 
 ---
 
-## 6. `rollback` の手順
+## 🛡️ 安全策と除外ルール
 
-1. `/tmp/<ユーザー>/find_and_extract/<host>_<timestamp>_transform.log` を特定。
-2. `./find_and_extract.sh rollback [--file <path>] <transform-log>` を実行。
-3. 復元対象が見つからない場合やバックアップが破損している場合はエラーとしてカウントされます。処理結果は「復元: X 件 / 失敗: Y 件」の形で表示されます。
-
----
-
-## 7. ログと一時ファイル
-
-- すべてのログは `/tmp/<ユーザー>/find_and_extract/` に集約され、ディレクトリ作成時に 700 パーミッションを付与します。
-- 主なログ種別:
-  - `*_current_infra.log`, `*_new_infra_stg.log`, `*_new_infra_prd.log`, `*_other.log`, `*_mixed.log`
-  - `*_warnings.log`（構成不足や疎通失敗の警告）
-  - `*_transform_preview.log`（ドライラン差分）
-  - `*_transform.log`（本適用結果）
-- `--deletelogs` オプションで上記ログをまとめて削除可能です。
+- 変更しないファイル: nginx / Apache 設定など重要ファイルをハードコードで保護。
+- 変換対象外となる条件:
+  - バイナリ判定されたファイル、10 MiB 超のファイル
+  - バックアップ風ファイル（`--skip-backup-files` 指定時）
+  - `*.save`、`YYYYMMDD` を含むファイル名
+- 割り込み対策:
+  - 1 回目の `Ctrl+C` で一時ファイルを削除しメッセージ表示。
+  - 2 回目で強制終了（追加メッセージを出力）。
+- td-agent リポジトリ生成時は `curl` を用いた疎通チェック結果を必ず通知。
 
 ---
 
-## 8. よくある質問 (FAQ)
+## 🗃️ ログと生成物
 
-**Q. `/etc/profile` に既に PRD 向けのプロキシ設定がある場合はどうなりますか？**  
-A. 既存の `export http_proxy=...` 等が見つかった場合は追記をスキップし、重複定義は行いません。
+| ファイル | 役割 |
+|----------|------|
+| `<host>_<timestamp>_current_infra.log` 等 | カテゴリ別スキャン結果。 |
+| `<host>_<timestamp>_warnings.log` | 構成不足・疎通エラーの警告。 |
+| `<host>_<timestamp>_transform_preview.log` | ドライラン差分の記録。 |
+| `<host>_<timestamp>_transform.log` | 本適用で変更したファイルとバックアップ情報。 |
+| `*_YYYYMMDD_HHMM.bak` | `--apply` 実行時に作成されるバックアップ。 |
 
-**Q. Treasure Data リポジトリの疎通に失敗したらどうなりますか？**  
-A. 失敗時は `TD_REPO_LAST_FAILURE=1` となり、メッセージを標準出力に表示します。ファイル自体は生成しますが、警告を確認のうえ手動で再試行することを推奨します。
-
-**Q. 独自形式のバックアップファイルを除外したい場合は？**  
-A. `--skip-backup-files` を指定すると既定のバックアップ判定が有効になります。追加で除外したい場合は `should_skip_file_for_processing()` のロジックをカスタマイズしてください（日本語ガイドおよびソース参照）。
+`--deletelogs` オプションで `/tmp/<ユーザー>/find_and_extract/` 配下のログを一括削除できます。
 
 ---
 
-## 9. 参考ドキュメント
+## 📚 関連ドキュメント
 
-- 詳細な操作手順: `docs/FIND_AND_EXTRACT_TOOL.md`
-- 仕様と安全対策まとめ: `docs/PROJECT_SPEC_SH.md`
-- 変更履歴（英語版 / 日本語版）: `CHANGELOG.md`, `CHANGELOG_ja.md`
+- 📝 運用ガイド (JP): [`docs/FIND_AND_EXTRACT_TOOL.md`](docs/FIND_AND_EXTRACT_TOOL.md)
+- 📘 シェル版仕様: [`docs/PROJECT_SPEC_SH.md`](docs/PROJECT_SPEC_SH.md)
+- 🧰 td-agent helper: [`generate_td_agent_conf.sh`](generate_td_agent_conf.sh)
+- 📦 JSON スキーマ: [`schemas/`](schemas/)
 
-これらを併用することで、STG → PRD 移行の標準化と安全なロールバックが実現できます。
+---
+
+## 🌐 ローカライズと変更履歴
+
+- 英語版 changelog: [`CHANGELOG.md`](CHANGELOG.md)
+- 日本語版 changelog: [`CHANGELOG_ja.md`](CHANGELOG_ja.md)
+- 英語 README: [`README.md`](README.md)
+
+**最新版 (v3.6.3.0 / 2025-11-05)** では以下を実装:
+
+- `/etc/profile` のプロキシを固定値に統一し、STG トークンを確実に PRD 化。
+- Treasure Data リポジトリの URL 切り替えと疎通チェックを自動化。
+- 編集途中のファイルを誤って変換しないための除外ルールを追加。
+
+どうぞご活用ください！🚀
