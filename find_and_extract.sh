@@ -88,6 +88,25 @@ cleanup() {
     CLEANUP_PERFORMED=1
 }
 
+print_temp_file_error() {
+    local label="$1"
+    printf "%s" "$MSG_ERROR_PREFIX" >&2
+    local formatted_msg
+    # shellcheck disable=SC2059
+    printf -v formatted_msg "$MSG_TEMP_FILE_CREATION_FAILED" "$label"
+    printf '%s' "$formatted_msg" >&2
+    unset formatted_msg
+}
+
+format_i18n() {
+    local format="$1"
+    shift
+    local formatted=""
+    # shellcheck disable=SC2059
+    printf -v formatted "$format" "$@"
+    printf '%s' "$formatted"
+}
+
 # trapコマンドは、一時ファイルが確実に作成された後に設定する
 force_exit() {
     printf "\n%s\n" "$MSG_INTERRUPT_FORCED"
@@ -461,7 +480,10 @@ record_transform_failure() {
 if [[ -z "${BASH_VERSINFO[0]}" ]] || [[ "${BASH_VERSINFO[0]}" -lt "$MIN_BASH_MAJOR_VERSION" ]]; then
     current_major_version="${BASH_VERSINFO[0]:-unknown}"
     current_minor_version="${BASH_VERSINFO[1]:-unknown}"
-    printf "$MSG_ERROR_BASH_VERSION_TOO_LOW" "$MIN_BASH_MAJOR_VERSION" "$current_major_version" "$current_minor_version" >&2
+    # shellcheck disable=SC2059  # i18n message strings contain format specifiers
+    printf -v formatted_msg "$MSG_ERROR_BASH_VERSION_TOO_LOW" "$MIN_BASH_MAJOR_VERSION" "$current_major_version" "$current_minor_version"
+    printf '%s' "$formatted_msg" >&2
+    unset formatted_msg
     exit 1
 fi
 if [[ $# -gt 0 ]]; then
@@ -489,12 +511,14 @@ while [[ $# -gt 0 ]]; do
         --skip-backup-files) SKIP_BACKUP_FILES_MODE=1; shift ;;
         --deletelogs)
             if [ "$SUBCOMMAND" = "transform" ]; then
-                printf "%s%s\n" "$MSG_ERROR_PREFIX" "$MSG_DELETELLOGS_NOT_ALLOWED" >&2
+                printf '%s' "$MSG_ERROR_PREFIX" >&2
+                printf '%s\n' "$MSG_DELETELLOGS_NOT_ALLOWED" >&2
                 printf "%s\n" "$MSG_USAGE_LINE1_EXTENDED" >&2
                 exit 1
             fi
             if [ "$#" -gt 1 ] || [ ${#remaining_args[@]} -ne 0 ]; then
-                printf "%s%s\n" "$MSG_ERROR_PREFIX" "$MSG_TOO_MANY_ARGS_OR_INVALID_COMBINATION" >&2
+                printf '%s' "$MSG_ERROR_PREFIX" >&2
+                printf '%s\n' "$MSG_TOO_MANY_ARGS_OR_INVALID_COMBINATION" >&2
                 printf "%s\n" "$MSG_USAGE_LINE1_EXTENDED" >&2
                 exit 1
             fi
@@ -503,7 +527,8 @@ while [[ $# -gt 0 ]]; do
             ;;
         --apply)
             if [ "$SUBCOMMAND" != "transform" ]; then
-                printf "%s%s\n" "$MSG_ERROR_PREFIX" "$MSG_ERROR_APPLY_ONLY_TRANSFORM" >&2
+                printf '%s' "$MSG_ERROR_PREFIX" >&2
+                printf '%s\n' "$MSG_ERROR_APPLY_ONLY_TRANSFORM" >&2
                 printf "%s\n" "$MSG_USAGE_LINE1_EXTENDED" >&2
                 exit 1
             fi
@@ -511,7 +536,8 @@ while [[ $# -gt 0 ]]; do
             shift ;;
         --dry-run)
             if [ "$SUBCOMMAND" != "transform" ]; then
-                printf "%s%s\n" "$MSG_ERROR_PREFIX" "$MSG_ERROR_DRY_RUN_ONLY_TRANSFORM" >&2
+                printf '%s' "$MSG_ERROR_PREFIX" >&2
+                printf '%s\n' "$MSG_ERROR_DRY_RUN_ONLY_TRANSFORM" >&2
                 printf "%s\n" "$MSG_USAGE_LINE1_EXTENDED" >&2
                 exit 1
             fi
@@ -519,19 +545,21 @@ while [[ $# -gt 0 ]]; do
             shift ;;
         --file)
             if [ "$SUBCOMMAND" != "rollback" ]; then
-                printf "%s%s\n" "$MSG_ERROR_PREFIX" "$MSG_ERROR_ROLLBACK_FILE_OPTION" >&2
+                printf '%s' "$MSG_ERROR_PREFIX" >&2
+                printf '%s\n' "$MSG_ERROR_ROLLBACK_FILE_OPTION" >&2
                 printf "%s\n" "$MSG_USAGE_LINE1_EXTENDED" >&2
                 exit 1
             fi
             if [ $# -lt 2 ]; then
-                printf "%s%s\n" "$MSG_ERROR_PREFIX" "$MSG_TOO_MANY_ARGS_OR_INVALID_COMBINATION" >&2
+                printf '%s' "$MSG_ERROR_PREFIX" >&2
+                printf '%s\n' "$MSG_TOO_MANY_ARGS_OR_INVALID_COMBINATION" >&2
                 printf "%s\n" "$MSG_USAGE_LINE1_EXTENDED" >&2
                 exit 1
             fi
             ROLLBACK_TARGETS+=("$2")
             shift 2
             ;;
-        -*) printf "%s%s: %s\n" "$MSG_ERROR_PREFIX" "$MSG_ERROR_INVALID_OPTION" "$1" >&2
+        -*) printf '%s' "$MSG_ERROR_PREFIX" >&2; printf '%s: %s\n' "$MSG_ERROR_INVALID_OPTION" "$1" >&2
             printf "%s\n" "$MSG_USAGE_LINE1_EXTENDED" >&2
             exit 1 ;;
         *) remaining_args+=("$1"); shift ;;
@@ -541,26 +569,29 @@ done
 # 動作モードに応じて引数のバリデーションを行う
 if [ "$SUBCOMMAND" = "rollback" ]; then
     if [ "$DELETE_LOGS_MODE" -eq 1 ]; then
-        printf "%s%s\n" "$MSG_ERROR_PREFIX" "$MSG_DELETELLOGS_NOT_ALLOWED" >&2
+        printf '%s' "$MSG_ERROR_PREFIX" >&2
+        printf '%s\n' "$MSG_DELETELLOGS_NOT_ALLOWED" >&2
         printf "%s\n" "$MSG_USAGE_LINE1_EXTENDED" >&2
         exit 1
     fi
     if [ ${#remaining_args[@]} -ne 1 ]; then
-        printf "%s%s\n" "$MSG_ERROR_PREFIX" "$MSG_TOO_MANY_ARGS_OR_INVALID_COMBINATION" >&2
+        printf '%s' "$MSG_ERROR_PREFIX" >&2
+        printf '%s\n' "$MSG_TOO_MANY_ARGS_OR_INVALID_COMBINATION" >&2
         printf "%s\n" "$MSG_USAGE_LINE1_EXTENDED" >&2
         exit 1
     fi
     SEARCH_PATH="${remaining_args[0]}"
     if [ ! -f "$SEARCH_PATH" ]; then
         printf "%s" "$MSG_ERROR_PREFIX" >&2
-        printf "$MSG_ROLLBACK_LOG_NOT_FOUND" "$SEARCH_PATH" >&2
+        format_i18n "$MSG_ROLLBACK_LOG_NOT_FOUND" "$SEARCH_PATH" >&2
         exit 1
     fi
 elif [ "$DELETE_LOGS_MODE" -eq 1 ]; then
 
     # 削除モードの場合、他の引数は許可しない
     if [ ${#remaining_args[@]} -ne 0 ]; then
-        printf "%s%s\n" "$MSG_ERROR_PREFIX" "$MSG_TOO_MANY_ARGS_OR_INVALID_COMBINATION" >&2
+        printf '%s' "$MSG_ERROR_PREFIX" >&2
+        printf '%s\n' "$MSG_TOO_MANY_ARGS_OR_INVALID_COMBINATION" >&2
         printf "%s\n" "$MSG_USAGE_LINE1_EXTENDED" >&2
         exit 1
     fi
@@ -568,11 +599,13 @@ else
 
     # 検索/変換モードの場合、検索パスが1つだけ指定されていることを確認
     if [ ${#remaining_args[@]} -eq 0 ]; then
-        printf "%s%s\n" "$MSG_ERROR_PREFIX" "$MSG_SEARCH_PATH_NOT_SPECIFIED" >&2
+        printf '%s' "$MSG_ERROR_PREFIX" >&2
+        printf '%s\n' "$MSG_SEARCH_PATH_NOT_SPECIFIED" >&2
         printf "%s\n" "$MSG_USAGE_LINE1_EXTENDED" >&2
         exit 1
     elif [ ${#remaining_args[@]} -gt 1 ]; then
-        printf "%s%s\n" "$MSG_ERROR_PREFIX" "$MSG_TOO_MANY_ARGS_OR_INVALID_COMBINATION" >&2
+        printf '%s' "$MSG_ERROR_PREFIX" >&2
+        printf '%s\n' "$MSG_TOO_MANY_ARGS_OR_INVALID_COMBINATION" >&2
         printf "%s\n" "$MSG_USAGE_LINE1_EXTENDED" >&2
         exit 1
     else
@@ -581,7 +614,7 @@ else
         # 検索パスがディレクトリとして存在するか確認
         if [ ! -d "$SEARCH_PATH" ]; then
             printf "%s" "$MSG_ERROR_PREFIX" >&2
-            printf "$MSG_SEARCH_PATH_NOT_EXIST_OR_DIR" "$SEARCH_PATH" >&2
+            format_i18n "$MSG_SEARCH_PATH_NOT_EXIST_OR_DIR" "$SEARCH_PATH" >&2
             exit 1
         fi
     fi
@@ -597,7 +630,8 @@ check_write_permission() {
 
     # mktempで一時ファイルを作成できれば、書き込み権限があると判断
     PERMISSION_CHECK_TEST_FILE_TEMP=$(mktemp "${OUTPUT_DIR}/.perm_check_XXXXXX") || {
-        printf "%s%s\n" "$MSG_ERROR_PREFIX" "$MSG_ERROR_WRITE_PERMISSION_DENIED" >&2
+        printf '%s' "$MSG_ERROR_PREFIX" >&2
+        printf '%s\n' "$MSG_ERROR_WRITE_PERMISSION_DENIED" >&2
         exit 1
     }
 
@@ -638,7 +672,7 @@ log_warning_message() {
         printf "%s\n" "$message" >> "$WARNINGS_OUTPUT_FILE"
     fi
     if [ "$WARNINGS_LOG_PATH_ANNOUNCED" -eq 0 ] && [ -n "$WARNINGS_OUTPUT_FILE" ]; then
-        printf "%s%s\n" "$MSG_WARNINGS_LOG_FILE_LABEL" "$WARNINGS_OUTPUT_FILE"
+        printf '%s%s\n' "$MSG_WARNINGS_LOG_FILE_LABEL" "$WARNINGS_OUTPUT_FILE"
         WARNINGS_LOG_PATH_ANNOUNCED=1
     fi
 }
@@ -688,10 +722,10 @@ if [ "$DELETE_LOGS_MODE" -eq 1 ]; then
     if [[ "$(echo "$confirmation" | tr '[:upper:]' '[:lower:]')" =~ ^(yes|y)$ ]]; then
         for file_to_remove_confirmed in "${files_to_delete[@]}"; do
             if rm "$file_to_remove_confirmed"; then
-                printf "%s%s\n" "$MSG_LOG_DELETED" "$file_to_remove_confirmed"
+                printf '%s%s\n' "$MSG_LOG_DELETED" "$file_to_remove_confirmed"
             else
                 printf "%s" "$MSG_ERROR_PREFIX" >&2
-                printf "$MSG_LOG_DELETE_FAILED" "$file_to_remove_confirmed" >&2
+                format_i18n "$MSG_LOG_DELETE_FAILED" "$file_to_remove_confirmed" >&2
             fi
         done
         printf "%s\n" "$MSG_LOG_DELETE_COMPLETED"
@@ -744,43 +778,38 @@ printf "%s" "$header_info" > "$MIXED_OUTPUT_FILE"
 
 # --- 一時ファイル作成 ---
 CURRENT_INFRA_HITS_TEMP=$(mktemp) || {
-    printf "%s" "$MSG_ERROR_PREFIX" >&2
-    printf "$MSG_TEMP_FILE_CREATION_FAILED" "CURRENT_INFRA_HITS_TEMP" >&2
+    print_temp_file_error "CURRENT_INFRA_HITS_TEMP"
     exit 1
 }
 
 NEW_STG_HITS_TEMP=$(mktemp) || {
     cleanup
-    printf "%s" "$MSG_ERROR_PREFIX" >&2
-    printf "$MSG_TEMP_FILE_CREATION_FAILED" "NEW_STG_HITS_TEMP" >&2
+    print_temp_file_error "NEW_STG_HITS_TEMP"
     exit 1
 }
 
 NEW_PRD_HITS_TEMP=$(mktemp) || {
     cleanup
-    printf "%s" "$MSG_ERROR_PREFIX" >&2
-    printf "$MSG_TEMP_FILE_CREATION_FAILED" "NEW_PRD_HITS_TEMP" >&2
+    print_temp_file_error "NEW_PRD_HITS_TEMP"
     exit 1
 }
 
 OTHER_HITS_TEMP=$(mktemp) || {
     cleanup
-    printf "%s" "$MSG_ERROR_PREFIX" >&2
-    printf "$MSG_TEMP_FILE_CREATION_FAILED" "OTHER_HITS_TEMP" >&2
+    print_temp_file_error "OTHER_HITS_TEMP"
     exit 1
 }
 
 MIXED_HITS_TEMP=$(mktemp) || {
     cleanup
-    printf "%s" "$MSG_ERROR_PREFIX" >&2
-    printf "$MSG_TEMP_FILE_CREATION_FAILED" "MIXED_HITS_TEMP" >&2
+    print_temp_file_error "MIXED_HITS_TEMP"
     exit 1
 }
 
 # --- 実行開始メッセージ ---
 printf "%s\n" "$MSG_SEARCH_START"
-printf "${MSG_SEARCH_PATH_LABEL}%s\n" "$SEARCH_PATH"
-printf "${MSG_LOG_GENERATED_LOCATION}\n"
+printf '%s%s\n' "$MSG_SEARCH_PATH_LABEL" "$SEARCH_PATH"
+printf '%s\n' "$MSG_LOG_GENERATED_LOCATION"
 fi
 
 # --- ヘルパー関数の事前定義 ---
@@ -1057,7 +1086,7 @@ check_for_invalid_ips() {
         # 抜き出した文字列が有効なIPアドレスか検証
         if ! is_valid_ip "$potential_ip"; then
             printf "%s" "$MSG_ERROR_PREFIX" >&2
-            printf "$MSG_ERROR_INVALID_IP_FORMAT" "$filepath" "$line_num" "$potential_ip" >&2
+            format_i18n "$MSG_ERROR_INVALID_IP_FORMAT" "$filepath" "$line_num" "$potential_ip" >&2
         fi
     done
 }
@@ -1135,10 +1164,10 @@ print_diff_section() {
 emit_preview_block() {
     local file_path="$1"
     local diff_file="$2"
-    printf -- "$MSG_TRANSFORM_ASIS_HEADER\n" "$file_path"
+    format_i18n "$MSG_TRANSFORM_ASIS_HEADER\n" "$file_path"
     print_diff_section "$diff_file" "old"
     printf "\n"
-    printf -- "$MSG_TRANSFORM_TOBE_HEADER\n" "$file_path"
+    format_i18n "$MSG_TRANSFORM_TOBE_HEADER\n" "$file_path"
     print_diff_section "$diff_file" "new"
     printf "\n"
 }
@@ -1207,10 +1236,10 @@ check_newproduction_structure() {
             if [ $already_recorded -eq 0 ]; then
                 TRANSFORM_FAILED_FILES+=("$base_dir")
             fi
-            TRANSFORM_FAILURE_MESSAGES["$base_dir"]=$(printf "$MSG_TRANSFORM_NEWPROD_BASE_MISSING" "$base_dir")
+            TRANSFORM_FAILURE_MESSAGES["$base_dir"]=$(format_i18n "$MSG_TRANSFORM_NEWPROD_BASE_MISSING" "$base_dir")
         fi
         if [ "$emit_warning" -eq 1 ]; then
-            log_warning_message "$(printf "$MSG_SCAN_NEWPROD_BASE_MISSING" "$base_dir")"
+            log_warning_message "$(format_i18n "$MSG_SCAN_NEWPROD_BASE_MISSING" "$base_dir")"
         fi
         return 1
     fi
@@ -1244,12 +1273,12 @@ check_newproduction_structure() {
             IFS=', '; newprod_missing_joined="${missing_newprod_files[*]}"
             IFS=$saved_ifs
             if [ "$emit_warning" -eq 1 ]; then
-                log_warning_message "$(printf "$MSG_TRANSFORM_NEWPROD_FILES_MISSING" "$newproduction_display" "$newprod_missing_joined")"
+                log_warning_message "$(format_i18n "$MSG_TRANSFORM_NEWPROD_FILES_MISSING" "$newproduction_display" "$newprod_missing_joined")"
             fi
         else
             newproduction_needs_copy=1
             if [ "$emit_warning" -eq 1 ]; then
-                log_warning_message "$(printf "$MSG_SCAN_NEWPROD_MISSING_WARNING" "$newproduction_display")"
+                log_warning_message "$(format_i18n "$MSG_SCAN_NEWPROD_MISSING_WARNING" "$newproduction_display")"
             fi
         fi
 
@@ -1267,7 +1296,7 @@ check_newproduction_structure() {
                 if [ $already_recorded -eq 0 ]; then
                     TRANSFORM_FAILED_FILES+=("$config_dir")
                 fi
-                TRANSFORM_FAILURE_MESSAGES["$config_dir"]=$(printf "$MSG_SCAN_NEWPROD_BASE_MISSING" "$config_dir")
+                TRANSFORM_FAILURE_MESSAGES["$config_dir"]=$(format_i18n "$MSG_SCAN_NEWPROD_BASE_MISSING" "$config_dir")
             fi
             continue
         fi
@@ -1275,7 +1304,7 @@ check_newproduction_structure() {
         if [ ! -d "$newstaging_dir" ]; then
             status=1
             if [ "$emit_warning" -eq 1 ]; then
-                log_warning_message "$(printf "$MSG_SCAN_NEWSTAGING_MISSING" "$newproduction_display" "$newstaging_display")"
+                log_warning_message "$(format_i18n "$MSG_SCAN_NEWSTAGING_MISSING" "$newproduction_display" "$newstaging_display")"
             fi
             if [ "$track_transform_failures" -eq 1 ]; then
                 local existing=""
@@ -1289,7 +1318,7 @@ check_newproduction_structure() {
                 if [ $already_recorded -eq 0 ]; then
                     TRANSFORM_FAILED_FILES+=("$newproduction_dir")
                 fi
-                TRANSFORM_FAILURE_MESSAGES["$newproduction_dir"]=$(printf "$MSG_SCAN_NEWSTAGING_MISSING" "$newproduction_display" "$newstaging_display")
+                TRANSFORM_FAILURE_MESSAGES["$newproduction_dir"]=$(format_i18n "$MSG_SCAN_NEWSTAGING_MISSING" "$newproduction_display" "$newstaging_display")
             fi
             continue
         fi
@@ -1308,7 +1337,7 @@ check_newproduction_structure() {
             IFS=$saved_ifs
             status=1
             if [ "$emit_warning" -eq 1 ]; then
-                log_warning_message "$(printf "$MSG_SCAN_NEWSTAGING_FILES_MISSING" "$newstaging_display" "$joined")"
+                log_warning_message "$(format_i18n "$MSG_SCAN_NEWSTAGING_FILES_MISSING" "$newstaging_display" "$joined")"
             fi
             if [ "$track_transform_failures" -eq 1 ]; then
                 local existing=""
@@ -1322,20 +1351,20 @@ check_newproduction_structure() {
                 if [ $already_recorded -eq 0 ]; then
                     TRANSFORM_FAILED_FILES+=("$newstaging_dir")
                 fi
-                TRANSFORM_FAILURE_MESSAGES["$newstaging_dir"]=$(printf "$MSG_SCAN_NEWSTAGING_FILES_MISSING" "$newstaging_display" "$joined")
+                TRANSFORM_FAILURE_MESSAGES["$newstaging_dir"]=$(format_i18n "$MSG_SCAN_NEWSTAGING_FILES_MISSING" "$newstaging_display" "$joined")
             fi
             continue
         fi
 
         if [ "$allow_copy" -eq 1 ] && [ "$newproduction_needs_copy" -eq 1 ]; then
-            printf "$MSG_SCAN_NEWPROD_PROMPT" "$newproduction_display" "$newstaging_display" "$newproduction_display"
+            format_i18n "$MSG_SCAN_NEWPROD_PROMPT" "$newproduction_display" "$newstaging_display" "$newproduction_display"
             local response=""
             read -r response || response=""
             local lower_response=""
             lower_response=$(echo "$response" | tr "[:upper:]" "[:lower:]")
             if [[ "$lower_response" =~ ^(yes|y)$ ]]; then
                 if ( cd "$config_dir" 2>/dev/null && rm -rf "newproduction" 2>/dev/null && cp -a "newstaging" "newproduction" ); then
-                    printf "%s\n" "$(printf "$MSG_SCAN_NEWPROD_COPY_SUCCESS" "$newstaging_display" "$newproduction_display")"
+                    printf "%s\n" "$(format_i18n "$MSG_SCAN_NEWPROD_COPY_SUCCESS" "$newstaging_display" "$newproduction_display")"
                     newprod_ready=1
                     newproduction_needs_copy=0
                     newprod_missing_joined=""
@@ -1343,18 +1372,19 @@ check_newproduction_structure() {
                     found_dir=1
                     continue
                 else
-                    printf "%s%s\n" "$MSG_ERROR_PREFIX" "$(printf "$MSG_SCAN_NEWPROD_COPY_FAILED" "$newstaging_display" "$newproduction_display")" >&2
+                    printf '%s' "$MSG_ERROR_PREFIX" >&2
+                    printf '%s\n' "$(format_i18n "$MSG_SCAN_NEWPROD_COPY_FAILED" "$newstaging_display" "$newproduction_display")" >&2
                     if [ "$track_transform_failures" -eq 1 ]; then
-                        record_transform_failure "$newproduction_dir" "$(printf "$MSG_SCAN_NEWPROD_COPY_FAILED" "$newstaging_display" "$newproduction_display")"
+                        record_transform_failure "$newproduction_dir" "$(format_i18n "$MSG_SCAN_NEWPROD_COPY_FAILED" "$newstaging_display" "$newproduction_display")"
                     fi
                     status=1
                     continue
                 fi
             else
-                printf "%s\n" "$(printf "$MSG_SCAN_NEWPROD_COPY_SKIPPED" "$newstaging_display")"
+                printf "%s\n" "$(format_i18n "$MSG_SCAN_NEWPROD_COPY_SKIPPED" "$newstaging_display")"
                 status=1
                 if [ "$track_transform_failures" -eq 1 ]; then
-                    record_transform_failure "$newproduction_dir" "$(printf "$MSG_SCAN_NEWPROD_MISSING_WARNING" "$newproduction_display")"
+                    record_transform_failure "$newproduction_dir" "$(format_i18n "$MSG_SCAN_NEWPROD_MISSING_WARNING" "$newproduction_display")"
                 fi
                 continue
             fi
@@ -1379,9 +1409,9 @@ check_newproduction_structure() {
             fi
             if [ "$track_transform_failures" -eq 1 ]; then
                 if [ -n "$newprod_missing_joined" ]; then
-                    record_transform_failure "$newproduction_dir" "$(printf "$MSG_TRANSFORM_NEWPROD_FILES_MISSING" "$newproduction_dir" "$newprod_missing_joined")"
+                    record_transform_failure "$newproduction_dir" "$(format_i18n "$MSG_TRANSFORM_NEWPROD_FILES_MISSING" "$newproduction_dir" "$newprod_missing_joined")"
                 else
-                    record_transform_failure "$newproduction_dir" "$(printf "$MSG_SCAN_NEWPROD_MISSING_WARNING" "$newproduction_display")"
+                    record_transform_failure "$newproduction_dir" "$(format_i18n "$MSG_SCAN_NEWPROD_MISSING_WARNING" "$newproduction_display")"
                 fi
             fi
             status=1
@@ -1439,14 +1469,14 @@ run_transform() {
         fi
         if [[ "$filepath" == *.bak || "$filepath" == *.old || "$filepath" == *.bin || "$filepath" == *.cache || "$filepath" == *.types || "$filepath" == *.pem || "$filepath" == *.PEM ]]; then
             if [ "$VERBOSE_MODE" -eq 1 ]; then
-                printf "%s%s\n" "${MSG_VERBOSE_PREFIX}" "${MSG_VERBOSE_SKIPPING_BACKUP_FILE}$filepath"
+                printf '%s%s\n' "${MSG_VERBOSE_PREFIX}" "${MSG_VERBOSE_SKIPPING_BACKUP_FILE}$filepath"
             fi
             continue
         fi
         case "$filepath" in
             /etc/grub.d/*|/etc/pki/*|/etc/postfix/*|/etc/services|/etc/systemd/*|/etc/ImageMagick/*|/etc/php-fpm.d/*|/etc/profile.d/*|/etc/ssh/*|*.log|*.LOG)
                 if [ "$VERBOSE_MODE" -eq 1 ]; then
-                    printf "%s%s\n" "${MSG_VERBOSE_PREFIX}" "${MSG_VERBOSE_SKIPPING_BACKUP_FILE}$filepath"
+                    printf '%s%s\n' "${MSG_VERBOSE_PREFIX}" "${MSG_VERBOSE_SKIPPING_BACKUP_FILE}$filepath"
                 fi
                 continue
                 ;;
@@ -1454,23 +1484,22 @@ run_transform() {
         case "$filepath" in
             /var/www/com/ipet-ins/*/fuel/app/config/newstaging/*)
                 if [ "$VERBOSE_MODE" -eq 1 ]; then
-                    printf "%s%s\n" "${MSG_VERBOSE_PREFIX}" "${MSG_VERBOSE_SKIPPING_NEWSTAGING_FILE}$filepath"
+                    printf '%s%s\n' "${MSG_VERBOSE_PREFIX}" "${MSG_VERBOSE_SKIPPING_NEWSTAGING_FILE}$filepath"
                 fi
                 continue
                 ;;
         esac
         if [ "$filepath" = "/etc/nginx/nginx.conf" ] || [ "$filepath" = "/etc/httpd/httpd.conf" ]; then
             if [ "$VERBOSE_MODE" -eq 1 ]; then
-                printf "%s%s\n" "${MSG_VERBOSE_PREFIX}" "${MSG_VERBOSE_SKIPPING_PROTECTED_FILE}$filepath"
+                printf '%s%s\n' "${MSG_VERBOSE_PREFIX}" "${MSG_VERBOSE_SKIPPING_PROTECTED_FILE}$filepath"
             fi
             continue
         fi
         if [ "$filepath" = "/etc/yum.repos.d/td.repo" ]; then
-            temp_transformed=$(mktemp) || {
-                printf "%s" "$MSG_ERROR_PREFIX" >&2
-                printf "$MSG_TEMP_FILE_CREATION_FAILED" "transform" >&2
-                return 1
-            }
+        temp_transformed=$(mktemp) || {
+            print_temp_file_error "transform"
+            return 1
+        }
 
             write_td_repo_content "$temp_transformed"
             total_files_scanned_transform=$((total_files_scanned_transform + 1))
@@ -1502,28 +1531,27 @@ run_transform() {
         total_files_scanned_transform=$((total_files_scanned_transform + 1))
         if [ "$SKIP_BACKUP_FILES_MODE" -eq 1 ] && is_backup_file_name "$(basename "$filepath")"; then
             if [ "$VERBOSE_MODE" -eq 1 ]; then
-                printf "%s%s\n" "${MSG_VERBOSE_PREFIX}" "${MSG_VERBOSE_SKIPPING_BACKUP_FILE}$filepath"
+                printf '%s%s\n' "${MSG_VERBOSE_PREFIX}" "${MSG_VERBOSE_SKIPPING_BACKUP_FILE}$filepath"
             fi
             continue
         fi
         if should_skip_file_for_processing "$filepath"; then
             if [ "$VERBOSE_MODE" -eq 1 ]; then
-                printf "%s%s\n" "${MSG_VERBOSE_PREFIX}" "${MSG_VERBOSE_SKIPPING_BINARY_FILE}$filepath"
+                printf '%s%s\n' "${MSG_VERBOSE_PREFIX}" "${MSG_VERBOSE_SKIPPING_BINARY_FILE}$filepath"
             fi
             continue
         fi
         if [ "$VERBOSE_MODE" -eq 1 ]; then
-            printf "%s%s\n" "${MSG_VERBOSE_PREFIX}" "${MSG_VERBOSE_SCANNING_FILE}$filepath"
+            printf '%s%s\n' "${MSG_VERBOSE_PREFIX}" "${MSG_VERBOSE_SCANNING_FILE}$filepath"
         fi
         temp_transformed=$(mktemp) || {
             printf "%s" "$MSG_ERROR_PREFIX" >&2
-            printf "$MSG_TEMP_FILE_CREATION_FAILED" "transform" >&2
+            print_temp_file_error "transform"
             return 1
         }
 
         transform_err=$(mktemp) || {
-            printf "%s" "$MSG_ERROR_PREFIX" >&2
-            printf "$MSG_TEMP_FILE_CREATION_FAILED" "transform" >&2
+            print_temp_file_error "transform"
             rm -f "$temp_transformed" 2>/dev/null
             return 1
         }
@@ -1791,7 +1819,7 @@ AWK
             fi
             TRANSFORM_FAILURE_MESSAGES["$filepath"]="$transform_output"
             printf "%s" "$MSG_ERROR_PREFIX" >&2
-            printf "$MSG_ERROR_TRANSFORM_EXECUTION" "$transform_output" >&2
+            format_i18n "$MSG_ERROR_TRANSFORM_EXECUTION" "$transform_output" >&2
         fi
     done < <(find "$SEARCH_PATH" -path '*/selinux/*' -prune -o -type f -not -name '*#*' -print0)
     if [ "$CANCEL_REQUESTED" -ne 0 ]; then
@@ -1799,9 +1827,9 @@ AWK
         return 130
     fi
     printf "\n%s\n" "$MSG_TRANSFORM_SUMMARY_HEADER"
-    printf "${MSG_SUMMARY_TOTAL_FILES_SCANNED}\n" "$total_files_scanned_transform"
-    printf "${MSG_TRANSFORM_TOTAL_CHANGED}\n" "${#TRANSFORM_CHANGED_FILES[@]}"
-    printf "${MSG_TRANSFORM_TOTAL_FAILED}\n" "${#TRANSFORM_FAILED_FILES[@]}"
+    printf '%s\n' "$(format_i18n "$MSG_SUMMARY_TOTAL_FILES_SCANNED" "$total_files_scanned_transform")"
+    printf '%s\n' "$(format_i18n "$MSG_TRANSFORM_TOTAL_CHANGED" "${#TRANSFORM_CHANGED_FILES[@]}")"
+    printf '%s\n' "$(format_i18n "$MSG_TRANSFORM_TOTAL_FAILED" "${#TRANSFORM_FAILED_FILES[@]}")"
     if [ "${#TRANSFORM_FAILED_FILES[@]}" -gt 0 ]; then
         printf "\n%s\n" "$MSG_TRANSFORM_FAILED_HEADER"
         for file in "${TRANSFORM_FAILED_FILES[@]}"; do
@@ -1812,7 +1840,7 @@ AWK
         done
     fi
     if [ -n "$WARNINGS_OUTPUT_FILE" ] && [ -f "$WARNINGS_OUTPUT_FILE" ]; then
-        printf -- "${MSG_CHECK_WARNINGS_LOG}" "$WARNINGS_OUTPUT_FILE"
+        format_i18n "${MSG_CHECK_WARNINGS_LOG}" "$WARNINGS_OUTPUT_FILE"
     fi
     if [ "${#TRANSFORM_CHANGED_FILES[@]}" -eq 0 ]; then
         printf "%s\n" "$MSG_TRANSFORM_NO_CHANGES"
@@ -1843,7 +1871,7 @@ AWK
             break
         fi
         local diff_file
-        printf -- "$MSG_TRANSFORM_FILE_WOULD_CHANGE\n" "$file"
+        format_i18n "$MSG_TRANSFORM_FILE_WOULD_CHANGE\n" "$file"
         diff_file="${TRANSFORM_DIFF_PATHS[$file]:-}"
         if [ -n "$transform_diff_log" ]; then
             emit_preview_block "$file" "$diff_file" | tee -a "$transform_diff_log"
@@ -1853,13 +1881,13 @@ AWK
         if [ "$VERBOSE_MODE" -eq 1 ]; then
             diff_file="${TRANSFORM_DIFF_PATHS[$file]:-}"
             if [ -n "$diff_file" ] && [ -s "$diff_file" ]; then
-                printf -- "$MSG_TRANSFORM_DIFF_HEADER\n" "$file"
+                format_i18n "$MSG_TRANSFORM_DIFF_HEADER\n" "$file"
                 cat "$diff_file"
             fi
         fi
     done
     if [ -n "$transform_diff_log" ]; then
-        printf -- "$MSG_TRANSFORM_DIFF_LOG_SAVED\n" "$transform_diff_log"
+        format_i18n "$MSG_TRANSFORM_DIFF_LOG_SAVED\n" "$transform_diff_log"
     fi
     if [ "$TRANSFORM_DRY_RUN" -eq 1 ]; then
         printf "%s\n" "$MSG_TRANSFORM_DRY_RUN_COMPLETED"
@@ -1877,7 +1905,7 @@ AWK
         TRANSFORM_CHANGED_FILES=()
         return 0
     fi
-    printf "$MSG_TRANSFORM_APPLY_CONFIRM" "${#sorted_changed_files[@]}"
+    format_i18n "$MSG_TRANSFORM_APPLY_CONFIRM" "${#sorted_changed_files[@]}"
     local apply_confirmation
     read -r apply_confirmation
     local lower_response
@@ -1918,7 +1946,8 @@ AWK
             td_repo_status=$?
             if [ -n "$TD_REPO_LAST_MESSAGE" ]; then
                 if [ "$TD_REPO_LAST_FAILURE" -eq 1 ]; then
-                    printf "%s%s\n" "$MSG_ERROR_PREFIX" "$TD_REPO_LAST_MESSAGE" >&2
+                    printf '%s' "$MSG_ERROR_PREFIX" >&2
+                    printf '%s\n' "$TD_REPO_LAST_MESSAGE" >&2
                 else
                     printf "%s\n" "$TD_REPO_LAST_MESSAGE"
                 fi
@@ -1964,7 +1993,7 @@ AWK
         if ! cp -p "$file" "$backup_path" 2>/dev/null; then
             if ! cp "$file" "$backup_path" 2>/dev/null; then
                 printf "%s" "$MSG_ERROR_PREFIX" >&2
-                printf "$MSG_TRANSFORM_FILE_FAILED" "$file" >&2
+                format_i18n "$MSG_TRANSFORM_FILE_FAILED" "$file" >&2
                 apply_failures=$((apply_failures + 1))
                 if [ -n "$temp_file" ]; then rm -f "$temp_file" 2>/dev/null; fi
                 if [ -n "$diff_saved" ]; then rm -f "$diff_saved" 2>/dev/null; fi
@@ -1975,7 +2004,7 @@ AWK
         fi
         if ! cat "$temp_file" > "$file"; then
             printf "%s" "$MSG_ERROR_PREFIX" >&2
-            printf "$MSG_TRANSFORM_FILE_FAILED" "$file" >&2
+            format_i18n "$MSG_TRANSFORM_FILE_FAILED" "$file" >&2
             cp "$backup_path" "$file" 2>/dev/null
             apply_failures=$((apply_failures + 1))
             if [ -n "$temp_file" ]; then rm -f "$temp_file" 2>/dev/null; fi
@@ -1988,7 +2017,7 @@ AWK
         if [ -n "$orig_owner" ] && [ -n "$orig_group" ]; then
             chown "$orig_owner:$orig_group" "$file" 2>/dev/null || true
         fi
-        printf "$MSG_TRANSFORM_FILE_CHANGED\n" "$file" "$backup_path"
+        format_i18n "$MSG_TRANSFORM_FILE_CHANGED\n" "$file" "$backup_path"
         if [ -n "$temp_file" ]; then rm -f "$temp_file" 2>/dev/null; fi
         if [ -n "$diff_saved" ]; then rm -f "$diff_saved" 2>/dev/null; fi
         unset 'TRANSFORM_TEMP_PATHS[$file]'
@@ -2002,13 +2031,13 @@ AWK
     if [ $apply_failures -eq 0 ]; then
         printf "%s\n" "$MSG_TRANSFORM_APPLY_COMPLETED"
         if [ -n "$change_log" ] && [ -f "$change_log" ]; then
-            printf "$MSG_TRANSFORM_LOG_SAVED\n" "$change_log"
+            format_i18n "$MSG_TRANSFORM_LOG_SAVED\n" "$change_log"
         fi
         return 0
     fi
-    printf "${MSG_TRANSFORM_TOTAL_FAILED}\n" "$apply_failures"
+    printf '%s\n' "$(format_i18n "$MSG_TRANSFORM_TOTAL_FAILED" "$apply_failures")"
     if [ -n "$change_log" ] && [ -f "$change_log" ]; then
-        printf "$MSG_TRANSFORM_LOG_SAVED\n" "$change_log"
+        format_i18n "$MSG_TRANSFORM_LOG_SAVED\n" "$change_log"
     fi
     return 1
 }
@@ -2023,7 +2052,7 @@ run_rollback() {
     printf "%s\n" "$MSG_ROLLBACK_MODE_HEADER"
     if [ ! -f "$log_file" ]; then
         printf "%s" "$MSG_ERROR_PREFIX" >&2
-        printf "$MSG_ROLLBACK_LOG_NOT_FOUND" "$log_file" >&2
+        format_i18n "$MSG_ROLLBACK_LOG_NOT_FOUND" "$log_file" >&2
         exit 1
     fi
     if [ ${#ROLLBACK_TARGETS[@]} -gt 0 ]; then
@@ -2041,7 +2070,7 @@ run_rollback() {
         fi
         if [ -z "$original_path" ] || [ -z "$backup_path" ]; then
             printf "%s" "$MSG_ERROR_PREFIX" >&2
-            printf "$MSG_ROLLBACK_INVALID_LINE" "$original_path" >&2
+            format_i18n "$MSG_ROLLBACK_INVALID_LINE" "$original_path" >&2
             failed_count=$((failed_count + 1))
             continue
         fi
@@ -2054,14 +2083,14 @@ run_rollback() {
         fi
         if [ ! -f "$backup_path" ]; then
             printf "%s" "$MSG_ERROR_PREFIX" >&2
-            printf "$MSG_ROLLBACK_BACKUP_MISSING" "$backup_path" >&2
+            format_i18n "$MSG_ROLLBACK_BACKUP_MISSING" "$backup_path" >&2
             failed_count=$((failed_count + 1))
             continue
         fi
         if ! cp -p "$backup_path" "$original_path" 2>/dev/null; then
             if ! cp "$backup_path" "$original_path" 2>/dev/null; then
                 printf "%s" "$MSG_ERROR_PREFIX" >&2
-                printf "$MSG_ROLLBACK_FILE_FAILED" "$original_path" >&2
+                format_i18n "$MSG_ROLLBACK_FILE_FAILED" "$original_path" >&2
                 failed_count=$((failed_count + 1))
                 continue
             fi
@@ -2070,7 +2099,7 @@ run_rollback() {
         if [ -n "$original_owner" ] && [ -n "$original_group" ]; then
             chown "$original_owner:$original_group" "$original_path" 2>/dev/null || true
         fi
-        printf "$MSG_ROLLBACK_FILE_RESTORED\n" "$original_path"
+        format_i18n "$MSG_ROLLBACK_FILE_RESTORED\n" "$original_path"
         restored_count=$((restored_count + 1))
         if [ $use_targets -eq 1 ]; then
             target_seen["$original_path"]=1
@@ -2080,7 +2109,7 @@ run_rollback() {
         for target in "${ROLLBACK_TARGETS[@]}"; do
             if [ "${target_seen[$target]}" -ne 1 ]; then
                 printf "%s" "$MSG_ERROR_PREFIX" >&2
-                printf "$MSG_ROLLBACK_TARGET_NOT_FOUND" "$target" >&2
+                format_i18n "$MSG_ROLLBACK_TARGET_NOT_FOUND" "$target" >&2
                 failed_count=$((failed_count + 1))
             fi
         done
@@ -2092,7 +2121,7 @@ run_rollback() {
         printf "%s\n" "$MSG_OPERATION_CANCELLED"
         return 130
     fi
-    printf "$MSG_ROLLBACK_SUMMARY\n" "$restored_count" "$failed_count"
+    format_i18n "$MSG_ROLLBACK_SUMMARY\n" "$restored_count" "$failed_count"
     if [ $failed_count -ne 0 ]; then
         return 1
     fi
@@ -2277,14 +2306,14 @@ while IFS= read -r -d $'\0' filepath; do
     case "$filepath" in
         /etc/grub.d/*|/etc/pki/*|/etc/postfix/*|/etc/services|/etc/systemd/*|/etc/ImageMagick/*|/etc/php-fpm.d/*|/etc/profile.d/*|/etc/ssh/*|*.log|*.LOG)
             if [ "$VERBOSE_MODE" -eq 1 ]; then
-                printf "%s%s\n" "${MSG_VERBOSE_PREFIX}" "${MSG_VERBOSE_SKIPPING_BACKUP_FILE}$filepath"
+                printf '%s%s\n' "${MSG_VERBOSE_PREFIX}" "${MSG_VERBOSE_SKIPPING_BACKUP_FILE}$filepath"
             fi
             continue
             ;;
     esac
     if [ "$filepath" = "/etc/nginx/nginx.conf" ] || [ "$filepath" = "/etc/httpd/httpd.conf" ]; then
         if [ "$VERBOSE_MODE" -eq 1 ]; then
-            printf "%s%s\n" "${MSG_VERBOSE_PREFIX}" "${MSG_VERBOSE_SKIPPING_PROTECTED_FILE}$filepath"
+            printf '%s%s\n' "${MSG_VERBOSE_PREFIX}" "${MSG_VERBOSE_SKIPPING_PROTECTED_FILE}$filepath"
         fi
         continue
     fi
@@ -2292,7 +2321,7 @@ while IFS= read -r -d $'\0' filepath; do
     abs_filepath=$(readlink -f "$filepath" 2>/dev/null || echo "$filepath")
     if should_skip_file_for_processing "$filepath"; then
         if [ "$VERBOSE_MODE" -eq 1 ]; then
-            printf "%s%s\n" "${MSG_VERBOSE_PREFIX}" "${MSG_VERBOSE_SKIPPING_BINARY_FILE}$filepath"
+            printf '%s%s\n' "${MSG_VERBOSE_PREFIX}" "${MSG_VERBOSE_SKIPPING_BINARY_FILE}$filepath"
         fi
         continue
     fi
@@ -2308,10 +2337,10 @@ while IFS= read -r -d $'\0' filepath; do
 
     # バックアップファイルスキップオプションが有効な場合、バックアップファイルをスキップ
     if [ "$SKIP_BACKUP_FILES_MODE" -eq 1 ] && is_backup_file_name "$(basename "$filepath")"; then
-        if [ "$VERBOSE_MODE" -eq 1 ]; then printf "%s%s\n" "${MSG_VERBOSE_PREFIX}" "${MSG_VERBOSE_SKIPPING_BACKUP_FILE}$filepath"; fi
+        if [ "$VERBOSE_MODE" -eq 1 ]; then printf '%s%s\n' "${MSG_VERBOSE_PREFIX}" "${MSG_VERBOSE_SKIPPING_BACKUP_FILE}$filepath"; fi
         continue
     fi
-    if [ "$VERBOSE_MODE" -eq 1 ]; then printf "%s%s\n" "${MSG_VERBOSE_PREFIX}" "${MSG_VERBOSE_SCANNING_FILE}$filepath"; fi
+    if [ "$VERBOSE_MODE" -eq 1 ]; then printf '%s%s\n' "${MSG_VERBOSE_PREFIX}" "${MSG_VERBOSE_SCANNING_FILE}$filepath"; fi
     current_infra_log_header_printed=0
     current_infra_match_found=0
 
@@ -2332,14 +2361,14 @@ while IFS= read -r -d $'\0' filepath; do
             if [ "$current_infra_log_header_printed" -eq 0 ]; then
                 {
                     printf "%s\n" "$SEPARATOR_LINE_LONG"
-                    printf "${MSG_FILE_LABEL}\"%s\"\n" "$filepath"
+                    printf '%s"%s"\n' "$MSG_FILE_LABEL" "$filepath"
                 } >> "$CURRENT_INFRA_OUTPUT_FILE"
                 current_infra_log_header_printed=1
             fi
             {
                 printf "%s\n" "$SEPARATOR_LINE_SHORT"
-                printf "${MSG_CONDITION_LABEL_CURRENT}: %s %s\n" "$description" "$MSG_COMMENT_IGNORED_LABEL"
-                printf "${MSG_MATCHES_LABEL} (%s):\n" "$MSG_CONTEXT_LINES_LABEL"
+                printf '%s: %s %s\n' "$MSG_CONDITION_LABEL_CURRENT" "$description" "$MSG_COMMENT_IGNORED_LABEL"
+                printf '%s (%s):\n' "$MSG_MATCHES_LABEL" "$MSG_CONTEXT_LINES_LABEL"
                 printf '%s\n' "$filtered_matches"
             } >> "$CURRENT_INFRA_OUTPUT_FILE"
             current_infra_match_found=1
@@ -2367,14 +2396,14 @@ while IFS= read -r -d $'\0' filepath; do
             if [ "$new_stg_log_header_printed" -eq 0 ]; then
                 {
                     printf "%s\n" "$SEPARATOR_LINE_LONG"
-                    printf "${MSG_FILE_LABEL}\"%s\"\n" "$filepath"
+                    printf '%s"%s"\n' "$MSG_FILE_LABEL" "$filepath"
                 } >> "$NEW_STG_OUTPUT_FILE"
                 new_stg_log_header_printed=1
             fi
             {
                 printf "%s\n" "$SEPARATOR_LINE_SHORT"
-                printf "${MSG_CONDITION_LABEL_NEW_STG}: %s %s\n" "$description" "$MSG_COMMENT_IGNORED_LABEL"
-                printf "${MSG_MATCHES_LABEL} (%s):\n" "$MSG_CONTEXT_LINES_LABEL"
+                printf '%s: %s %s\n' "$MSG_CONDITION_LABEL_NEW_STG" "$description" "$MSG_COMMENT_IGNORED_LABEL"
+                printf '%s (%s):\n' "$MSG_MATCHES_LABEL" "$MSG_CONTEXT_LINES_LABEL"
                 printf '%s\n' "$filtered_matches"
             } >> "$NEW_STG_OUTPUT_FILE"
             new_stg_match_found=1
@@ -2402,14 +2431,14 @@ while IFS= read -r -d $'\0' filepath; do
             if [ "$new_prd_log_header_printed" -eq 0 ]; then
                 {
                     printf "%s\n" "$SEPARATOR_LINE_LONG"
-                    printf "${MSG_FILE_LABEL}\"%s\"\n" "$filepath"
+                    printf '%s"%s"\n' "$MSG_FILE_LABEL" "$filepath"
                 } >> "$NEW_PRD_OUTPUT_FILE"
                 new_prd_log_header_printed=1
             fi
             {
                 printf "%s\n" "$SEPARATOR_LINE_SHORT"
-                printf "${MSG_CONDITION_LABEL_NEW_PRD}: %s %s\n" "$description" "$MSG_COMMENT_IGNORED_LABEL"
-                printf "${MSG_MATCHES_LABEL} (%s):\n" "$MSG_CONTEXT_LINES_LABEL"
+                printf '%s: %s %s\n' "$MSG_CONDITION_LABEL_NEW_PRD" "$description" "$MSG_COMMENT_IGNORED_LABEL"
+                printf '%s (%s):\n' "$MSG_MATCHES_LABEL" "$MSG_CONTEXT_LINES_LABEL"
                 printf '%s\n' "$filtered_matches"
             } >> "$NEW_PRD_OUTPUT_FILE"
             new_prd_match_found=1
@@ -2434,14 +2463,14 @@ while IFS= read -r -d $'\0' filepath; do
             if [ "$other_log_header_printed" -eq 0 ]; then
                 {
                     printf "%s\n" "$SEPARATOR_LINE_LONG"
-                    printf "${MSG_FILE_LABEL}\"%s\"\n" "$filepath"
+                    printf '%s"%s"\n' "$MSG_FILE_LABEL" "$filepath"
                 } >> "$OTHER_OUTPUT_FILE"
                 other_log_header_printed=1
             fi
             {
                 printf "%s\n" "$SEPARATOR_LINE_SHORT"
-                printf "${MSG_CONDITION_LABEL_OTHER}: %s %s\n" "$description" "$MSG_COMMENT_IGNORED_LABEL"
-                printf "${MSG_MATCHES_LABEL} (%s):\n" "$MSG_CONTEXT_LINES_LABEL"
+                printf '%s: %s %s\n' "$MSG_CONDITION_LABEL_OTHER" "$description" "$MSG_COMMENT_IGNORED_LABEL"
+                printf '%s (%s):\n' "$MSG_MATCHES_LABEL" "$MSG_CONTEXT_LINES_LABEL"
                 printf '%s\n' "$filtered_matches"
             } >> "$OTHER_OUTPUT_FILE"
             other_match_found=1
@@ -2471,8 +2500,8 @@ while IFS= read -r -d $'\0' filepath; do
         mixed_summary=$(IFS=', '; printf '%s' "${matched_categories[*]}")
         {
             printf "%s\n" "$SEPARATOR_LINE_LONG"
-            printf "${MSG_FILE_LABEL}\"%s\"\n" "$filepath"
-            printf "${MSG_MIXED_CONDITIONS_LABEL}\n" "$mixed_summary"
+            printf '%s"%s"\n' "$MSG_FILE_LABEL" "$filepath"
+            printf '%s\n' "$(format_i18n "$MSG_MIXED_CONDITIONS_LABEL" "$mixed_summary")"
             printf "\n"
         } >> "$MIXED_OUTPUT_FILE"
         if [ -z "${mixed_hits_written["$abs_filepath"]}" ]; then
@@ -2491,15 +2520,15 @@ fi
 # --- 実行結果のサマリー表示 ---
 printf -- "\n%s\n" "$SEPARATOR_LINE_SHORT"
 printf "%s\n" "$MSG_SEARCH_COMPLETED_PRIMARY"
-printf -- "${MSG_CHECK_NEW_STG_LOG}" "$NEW_STG_OUTPUT_FILE"
-printf -- "${MSG_CHECK_NEW_PRD_LOG}" "$NEW_PRD_OUTPUT_FILE"
-printf -- "${MSG_CHECK_OTHER_LOG}" "$OTHER_OUTPUT_FILE"
-printf -- "${MSG_CHECK_CURRENT_INFRA_LOG}" "$CURRENT_INFRA_OUTPUT_FILE"
-printf -- "${MSG_CHECK_MIXED_LOG}" "$MIXED_OUTPUT_FILE"
+format_i18n "${MSG_CHECK_NEW_STG_LOG}" "$NEW_STG_OUTPUT_FILE"
+format_i18n "${MSG_CHECK_NEW_PRD_LOG}" "$NEW_PRD_OUTPUT_FILE"
+format_i18n "${MSG_CHECK_OTHER_LOG}" "$OTHER_OUTPUT_FILE"
+format_i18n "${MSG_CHECK_CURRENT_INFRA_LOG}" "$CURRENT_INFRA_OUTPUT_FILE"
+format_i18n "${MSG_CHECK_MIXED_LOG}" "$MIXED_OUTPUT_FILE"
 if [ -n "$WARNINGS_OUTPUT_FILE" ] && [ -f "$WARNINGS_OUTPUT_FILE" ]; then
-    printf -- "${MSG_CHECK_WARNINGS_LOG}" "$WARNINGS_OUTPUT_FILE"
+    format_i18n "${MSG_CHECK_WARNINGS_LOG}" "$WARNINGS_OUTPUT_FILE"
 fi
-printf -- "${MSG_SUMMARY_TOTAL_FILES_SCANNED}\n" "$TOTAL_FILES_SCANNED"
+format_i18n "${MSG_SUMMARY_TOTAL_FILES_SCANNED}\n" "$TOTAL_FILES_SCANNED"
 chmod -R 777 "${OUTPUT_DIR}"
 printf "\n%s\n" "$MSG_CURRENT_INFRA_HITS_HEADER"
 print_filtered_hit_list "$CURRENT_INFRA_HITS_TEMP"
