@@ -129,4 +129,3 @@ A. `--skip-backup-files` を指定すると既定のバックアップ判定が�
 - 変更履歴（英語版 / 日本語版）: `CHANGELOG.md`, `CHANGELOG_ja.md`
 
 これらを併用することで、STG → PRD 移行の標準化と安全なロールバックが実現できます。
-
