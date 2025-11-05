@@ -166,11 +166,6 @@ if [[ "$ORIGINAL_LANG" == ja_JP* ]]; then
     MSG_EXECUTION_DATETIME_LABEL="実行日時:"
     MSG_SEARCH_START="検索を開始します..."
     MSG_SEARCH_PATH_LABEL="検索対象パス: "
-    MSG_CURRENT_INFRA_LOG_FILE_LABEL="現行基盤定義ログファイル: "
-    MSG_NEW_STG_LOG_FILE_LABEL="新基盤STG定義ログファイル: "
-    MSG_NEW_PRD_LOG_FILE_LABEL="新基盤PRD定義ログファイル: "
-    MSG_OTHER_LOG_FILE_LABEL="その他定義ログファイル: "
-    MSG_MIXED_LOG_FILE_LABEL="混在定義ログファイル: "
     MSG_WARNINGS_LOG_FILE_LABEL="警告ログファイル: "
     MSG_LOG_GENERATED_LOCATION="ログの出力先： ${OUTPUT_DIR}"
     MSG_LOG_DELETE_MODE="ログファイル削除モードです。"
@@ -217,8 +212,6 @@ if [[ "$ORIGINAL_LANG" == ja_JP* ]]; then
     MSG_SCAN_NEWPROD_COPY_FAILED="%s から %s へのコピーに失敗しました。"
     MSG_SCAN_NEWPROD_COPY_SKIPPED="%s のコピーをキャンセルしました。"
     MSG_TRANSFORM_LOG_SAVED="ロールバックログを %s に保存しました。"
-    MSG_TRANSFORM_TD_REPO_FALLBACK_APPLIED="td-agent リポジトリ(v4)に接続できなかったため、v3 (%s) を使用します。"
-    MSG_TRANSFORM_TD_REPO_FALLBACK_FAILED="td-agent リポジトリ(v4/v3)に接続できませんでした (試行URL: %s, %s)。"
     MSG_TRANSFORM_TD_REPO_CURL_NOT_FOUND="curl が見つからないため td-agent リポジトリの疎通確認をスキップしました。"
     MSG_ROLLBACK_MODE_HEADER="--- ロールバックモード ---"
     MSG_ROLLBACK_LOG_NOT_FOUND="指定されたロールバックログが見つかりません: %s"
@@ -249,7 +242,6 @@ if [[ "$ORIGINAL_LANG" == ja_JP* ]]; then
     MSG_CONDITION_LABEL_NEW_PRD="条件(新基盤 PRD)"
     MSG_CONDITION_LABEL_OTHER="条件(その他)"
     MSG_IP_CONDITION_CURRENT_DESC="IPアドレス (現行)"
-    MSG_IP_AWS_CONDITION_CURRENT_DESC="IPアドレス (AWS)"
     MSG_ENV_CONDITION_CURRENT_DESC="環境文字列 (現行)"
     MSG_HOSTNAME_CONDITION_CURRENT_DESC="ホスト名パターン (現行)"
     MSG_IPTP_CONDITION_CURRENT_DESC="文字列 \"iptp\""
@@ -267,14 +259,12 @@ if [[ "$ORIGINAL_LANG" == ja_JP* ]]; then
     MSG_HOSTNAME_GIT_CTRL_CONDITION_NEW_DESC="ホスト名 \"git\" (末尾 \"c\")"
     MSG_TOKEN_PRD_CONDITION_NEW_DESC="文字列 \"prd\""
     MSG_CONV_CONDITION_NEW_DESC="文字列 \"conv0\""
-    MSG_IP_AWS_CONDITION_DESC="IPアドレス (AWS)"
     MSG_IP_TOYOSU_CONDITION_DESC="IPアドレス (Toyosu)"
     MSG_IP_SUBNET_WS2_DESC="IPアドレス (WS2)"
     MSG_IP_REGIONAL_1_DESC="IPアドレス (Regional 44)"
     MSG_IP_REGIONAL_2_DESC="IPアドレス (Regional 172)"
     MSG_IP_REGIONAL_3_DESC="IPアドレス (Regional 33)"
     MSG_IP_INFRA_CONDITION_DESC="IPアドレス (Infra 174)"
-    MSG_ENV_CONDITION_NEW_DESC="環境文字列 (新)"
     MSG_IPETFS_CONDITION_NEW_DESC="文字列 \"ipet-fs\""
     MSG_COMMENT_IGNORED_LABEL="(コメント行(#)は無視)"
     MSG_MATCHES_LABEL="該当箇所"
@@ -311,11 +301,6 @@ else
     MSG_EXECUTION_DATETIME_LABEL="Execution Datetime:"
     MSG_SEARCH_START="Starting search..."
     MSG_SEARCH_PATH_LABEL="Search Path: "
-    MSG_CURRENT_INFRA_LOG_FILE_LABEL="Current Infra Defs Log: "
-    MSG_NEW_STG_LOG_FILE_LABEL="New Infra (STG) Log:"
-    MSG_NEW_PRD_LOG_FILE_LABEL="New Infra (PRD) Log:"
-    MSG_OTHER_LOG_FILE_LABEL="Other Matches Log:"
-    MSG_MIXED_LOG_FILE_LABEL="Mixed Definitions Log:"
     MSG_WARNINGS_LOG_FILE_LABEL="Warnings Log:"
     MSG_LOG_GENERATED_LOCATION="(generated in ${OUTPUT_DIR})"
     MSG_LOG_DELETE_MODE="Log file deletion mode."
@@ -362,8 +347,6 @@ else
     MSG_SCAN_NEWPROD_COPY_FAILED="Failed to copy %s to %s."
     MSG_SCAN_NEWPROD_COPY_SKIPPED="Skipped copying %s."
     MSG_TRANSFORM_LOG_SAVED="Rollback log saved to %s."
-    MSG_TRANSFORM_TD_REPO_FALLBACK_APPLIED="td-agent repository v4 unreachable; using v3 instead: %s"
-    MSG_TRANSFORM_TD_REPO_FALLBACK_FAILED="Unable to reach td-agent repository v4 or v3 (attempted %s and %s)."
     MSG_TRANSFORM_TD_REPO_CURL_NOT_FOUND="curl not found; skipping td-agent repository connectivity check."
     MSG_ROLLBACK_MODE_HEADER="--- Rollback Mode ---"
     MSG_ROLLBACK_LOG_NOT_FOUND="Rollback log not found: %s"
@@ -394,7 +377,6 @@ else
     MSG_CONDITION_LABEL_NEW_PRD="Condition(New Infra PRD)"
     MSG_CONDITION_LABEL_OTHER="Condition(Other)"
     MSG_IP_CONDITION_CURRENT_DESC="IP Address (Current)"
-    MSG_IP_AWS_CONDITION_CURRENT_DESC="IP Address (AWS)"
     MSG_ENV_CONDITION_CURRENT_DESC="Environment string (Current)"
     MSG_HOSTNAME_CONDITION_CURRENT_DESC="Hostname pattern (Current)"
     MSG_IPTP_CONDITION_CURRENT_DESC="String \"iptp\""
@@ -419,7 +401,6 @@ else
     MSG_IP_REGIONAL_2_DESC="IP Address (Regional 172)"
     MSG_IP_REGIONAL_3_DESC="IP Address (Regional 33)"
     MSG_IP_INFRA_CONDITION_DESC="IP Address (Infra 174)"
-    MSG_ENV_CONDITION_NEW_DESC="Environment string (New)"
     MSG_IPETFS_CONDITION_NEW_DESC="String \"ipet-fs\""
     MSG_COMMENT_IGNORED_LABEL="(comments ignored (#))"
     MSG_MATCHES_LABEL="Matches"
@@ -480,7 +461,7 @@ record_transform_failure() {
 if [[ -z "${BASH_VERSINFO[0]}" ]] || [[ "${BASH_VERSINFO[0]}" -lt "$MIN_BASH_MAJOR_VERSION" ]]; then
     current_major_version="${BASH_VERSINFO[0]:-unknown}"
     current_minor_version="${BASH_VERSINFO[1]:-unknown}"
-    printf "エラー: このスクリプトの実行にはBashバージョン %s.0 以上が必要です。現在のバージョンは %s.%s です。\n" "$MIN_BASH_MAJOR_VERSION" "$current_major_version" "$current_minor_version" >&2
+    printf "$MSG_ERROR_BASH_VERSION_TOO_LOW" "$MIN_BASH_MAJOR_VERSION" "$current_major_version" "$current_minor_version" >&2
     exit 1
 fi
 if [[ $# -gt 0 ]]; then
@@ -836,9 +817,10 @@ should_skip_file_for_processing() {
     if [ ! -f "$filepath" ]; then
         return 1
     fi
-    file_size=$(stat -c '%s' "$filepath" 2>/dev/null)
-    if [ $? -eq 0 ] && [ "$file_size" -gt "$MAX_ALLOWED_FILE_SIZE_BYTES" ]; then
-        return 0
+    if file_size=$(stat -c '%s' "$filepath" 2>/dev/null); then
+        if [ "$file_size" -gt "$MAX_ALLOWED_FILE_SIZE_BYTES" ]; then
+            return 0
+        fi
     fi
     if [ "$FILE_CMD_AVAILABLE" -eq 1 ]; then
         mime_encoding=$(file -b --mime-encoding "$filepath" 2>/dev/null || echo "")
@@ -1159,32 +1141,6 @@ emit_preview_block() {
     printf -- "$MSG_TRANSFORM_TOBE_HEADER\n" "$file_path"
     print_diff_section "$diff_file" "new"
     printf "\n"
-}
-
-# --- print_detailed_other_hits: 「その他条件」のサマリーを詳細に出力 ---
-print_detailed_other_hits() {
-    local temp_hit_file="$1"
-    if [ ! -f "$temp_hit_file" ] || [ ! -s "$temp_hit_file" ]; then return; fi
-
-    # 連想配列を使い、ヒットした条件ごとにファイルパスをまとめる
-    declare -A hits_by_condition
-    while IFS=: read -r condition_name filepath; do
-        hits_by_condition["$condition_name"]+="${filepath}"$'\n'
-    done < <(sort "$temp_hit_file")
-    if [ ${#hits_by_condition[@]} -eq 0 ]; then return; fi
-
-    # 条件ごとにループし、ファイルリストを出力
-    for condition_name in "${!hits_by_condition[@]}"; do
-        mapfile -t files < <(printf '%s' "${hits_by_condition[$condition_name]}" | sort -u)
-        if [ ${#files[@]} -gt 0 ] && [ -n "${files[0]}" ]; then
-            printf "\n"
-            printf -- "${MSG_NEW_INFRA_HITS_HEADER_BY_COND}" "${NEW_INFRA_CONDITIONS_DESC[$condition_name]}"
-            printf "\n"
-            for file in "${files[@]}"; do
-                printf "  %s\n" "$file"
-            done
-        fi
-    done
 }
 
 # Override with simplified implementation to avoid deprecated dependencies.
@@ -1586,10 +1542,10 @@ run_transform() {
                 "$default_proxy_value"
             )
             for idx in "${!proxy_collect_values[@]}"; do
-                local proxy_value="${proxy_collect_values[$idx]}"
+                local proxy_value="${proxy_collect_values[idx]}"
                 proxy_value=${proxy_value//\\/\\\\}
                 proxy_value=${proxy_value//\"/\\\"}
-                proxy_collect_values[$idx]="$proxy_value"
+                proxy_collect_values[idx]="$proxy_value"
             done
             if [ "${#proxy_collect_names[@]}" -gt 0 ]; then
                 proxy_names_joined=$(printf '%s|' "${proxy_collect_names[@]}")
@@ -2363,25 +2319,29 @@ while IFS= read -r -d $'\0' filepath; do
     for condition_name in "${!CURRENT_INFRA_CONDITIONS[@]}"; do
         pattern="${CURRENT_INFRA_CONDITIONS[$condition_name]}"
         description="${CURRENT_INFRA_CONDITIONS_DESC[$condition_name]}"
-        grep_options="-I -E -i -n -C 5 --color=never"
+        grep_options=(-I -E -i -n -C 5 --color=never)
         filter_type=""
         if [[ "$condition_name" == "ENV_current" ]]; then
             filter_type="current_env"
         fi
 
         # メモリ上のファイル内容に対してgrepを実行
-        raw_matches=$(grep $grep_options -- "$pattern" <<<"$file_content" 2>/dev/null)
+        raw_matches=$(grep "${grep_options[@]}" -- "$pattern" <<<"$file_content" 2>/dev/null)
         filtered_matches=$(filter_grep_output "$raw_matches" "$filter_type" "$MSG_HIT_LINE_PREFIX")
         if [ -n "$filtered_matches" ]; then
             if [ "$current_infra_log_header_printed" -eq 0 ]; then
-                printf "%s\n" "$SEPARATOR_LINE_LONG" >> "$CURRENT_INFRA_OUTPUT_FILE"
-                printf "${MSG_FILE_LABEL}\"%s\"\n" "$filepath" >> "$CURRENT_INFRA_OUTPUT_FILE"
+                {
+                    printf "%s\n" "$SEPARATOR_LINE_LONG"
+                    printf "${MSG_FILE_LABEL}\"%s\"\n" "$filepath"
+                } >> "$CURRENT_INFRA_OUTPUT_FILE"
                 current_infra_log_header_printed=1
             fi
-            printf "%s\n" "$SEPARATOR_LINE_SHORT" >> "$CURRENT_INFRA_OUTPUT_FILE"
-            printf "${MSG_CONDITION_LABEL_CURRENT}: %s %s\n" "$description" "$MSG_COMMENT_IGNORED_LABEL" >> "$CURRENT_INFRA_OUTPUT_FILE"
-            printf "${MSG_MATCHES_LABEL} (%s):\n" "$MSG_CONTEXT_LINES_LABEL" >> "$CURRENT_INFRA_OUTPUT_FILE"
-            printf '%s\n' "$filtered_matches" >> "$CURRENT_INFRA_OUTPUT_FILE"
+            {
+                printf "%s\n" "$SEPARATOR_LINE_SHORT"
+                printf "${MSG_CONDITION_LABEL_CURRENT}: %s %s\n" "$description" "$MSG_COMMENT_IGNORED_LABEL"
+                printf "${MSG_MATCHES_LABEL} (%s):\n" "$MSG_CONTEXT_LINES_LABEL"
+                printf '%s\n' "$filtered_matches"
+            } >> "$CURRENT_INFRA_OUTPUT_FILE"
             current_infra_match_found=1
         fi
     done
@@ -2397,20 +2357,26 @@ while IFS= read -r -d $'\0' filepath; do
     for condition_name in "${!NEW_STG_CONDITIONS[@]}"; do
         pattern="${NEW_STG_CONDITIONS[$condition_name]}"
         description="${NEW_STG_CONDITIONS_DESC[$condition_name]}"
-        grep_options="-I -E -i -n -C 5 --color=never"
-        if [[ "$condition_name" == "IP_new_stg" ]]; then grep_options="-I -E -n -C 5 --color=never"; fi
-        raw_matches=$(grep $grep_options -- "$pattern" <<<"$file_content" 2>/dev/null)
+        grep_options=(-I -E -i -n -C 5 --color=never)
+        if [[ "$condition_name" == "IP_new_stg" ]]; then
+            grep_options=(-I -E -n -C 5 --color=never)
+        fi
+        raw_matches=$(grep "${grep_options[@]}" -- "$pattern" <<<"$file_content" 2>/dev/null)
         filtered_matches=$(filter_grep_output "$raw_matches" "" "$MSG_HIT_LINE_PREFIX")
         if [ -n "$filtered_matches" ]; then
             if [ "$new_stg_log_header_printed" -eq 0 ]; then
-                printf "%s\n" "$SEPARATOR_LINE_LONG" >> "$NEW_STG_OUTPUT_FILE"
-                printf "${MSG_FILE_LABEL}\"%s\"\n" "$filepath" >> "$NEW_STG_OUTPUT_FILE"
+                {
+                    printf "%s\n" "$SEPARATOR_LINE_LONG"
+                    printf "${MSG_FILE_LABEL}\"%s\"\n" "$filepath"
+                } >> "$NEW_STG_OUTPUT_FILE"
                 new_stg_log_header_printed=1
             fi
-            printf "%s\n" "$SEPARATOR_LINE_SHORT" >> "$NEW_STG_OUTPUT_FILE"
-            printf "${MSG_CONDITION_LABEL_NEW_STG}: %s %s\n" "$description" "$MSG_COMMENT_IGNORED_LABEL" >> "$NEW_STG_OUTPUT_FILE"
-            printf "${MSG_MATCHES_LABEL} (%s):\n" "$MSG_CONTEXT_LINES_LABEL" >> "$NEW_STG_OUTPUT_FILE"
-            printf '%s\n' "$filtered_matches" >> "$NEW_STG_OUTPUT_FILE"
+            {
+                printf "%s\n" "$SEPARATOR_LINE_SHORT"
+                printf "${MSG_CONDITION_LABEL_NEW_STG}: %s %s\n" "$description" "$MSG_COMMENT_IGNORED_LABEL"
+                printf "${MSG_MATCHES_LABEL} (%s):\n" "$MSG_CONTEXT_LINES_LABEL"
+                printf '%s\n' "$filtered_matches"
+            } >> "$NEW_STG_OUTPUT_FILE"
             new_stg_match_found=1
         fi
     done
@@ -2426,20 +2392,26 @@ while IFS= read -r -d $'\0' filepath; do
     for condition_name in "${!NEW_PRD_CONDITIONS[@]}"; do
         pattern="${NEW_PRD_CONDITIONS[$condition_name]}"
         description="${NEW_PRD_CONDITIONS_DESC[$condition_name]}"
-        grep_options="-I -E -i -n -C 5 --color=never"
-        if [[ "$condition_name" == "IP_new_prd" ]]; then grep_options="-I -E -n -C 5 --color=never"; fi
-        raw_matches=$(grep $grep_options -- "$pattern" <<<"$file_content" 2>/dev/null)
+        grep_options=(-I -E -i -n -C 5 --color=never)
+        if [[ "$condition_name" == "IP_new_prd" ]]; then
+            grep_options=(-I -E -n -C 5 --color=never)
+        fi
+        raw_matches=$(grep "${grep_options[@]}" -- "$pattern" <<<"$file_content" 2>/dev/null)
         filtered_matches=$(filter_grep_output "$raw_matches" "" "$MSG_HIT_LINE_PREFIX")
         if [ -n "$filtered_matches" ]; then
             if [ "$new_prd_log_header_printed" -eq 0 ]; then
-                printf "%s\n" "$SEPARATOR_LINE_LONG" >> "$NEW_PRD_OUTPUT_FILE"
-                printf "${MSG_FILE_LABEL}\"%s\"\n" "$filepath" >> "$NEW_PRD_OUTPUT_FILE"
+                {
+                    printf "%s\n" "$SEPARATOR_LINE_LONG"
+                    printf "${MSG_FILE_LABEL}\"%s\"\n" "$filepath"
+                } >> "$NEW_PRD_OUTPUT_FILE"
                 new_prd_log_header_printed=1
             fi
-            printf "%s\n" "$SEPARATOR_LINE_SHORT" >> "$NEW_PRD_OUTPUT_FILE"
-            printf "${MSG_CONDITION_LABEL_NEW_PRD}: %s %s\n" "$description" "$MSG_COMMENT_IGNORED_LABEL" >> "$NEW_PRD_OUTPUT_FILE"
-            printf "${MSG_MATCHES_LABEL} (%s):\n" "$MSG_CONTEXT_LINES_LABEL" >> "$NEW_PRD_OUTPUT_FILE"
-            printf '%s\n' "$filtered_matches" >> "$NEW_PRD_OUTPUT_FILE"
+            {
+                printf "%s\n" "$SEPARATOR_LINE_SHORT"
+                printf "${MSG_CONDITION_LABEL_NEW_PRD}: %s %s\n" "$description" "$MSG_COMMENT_IGNORED_LABEL"
+                printf "${MSG_MATCHES_LABEL} (%s):\n" "$MSG_CONTEXT_LINES_LABEL"
+                printf '%s\n' "$filtered_matches"
+            } >> "$NEW_PRD_OUTPUT_FILE"
             new_prd_match_found=1
         fi
     done
@@ -2455,19 +2427,23 @@ while IFS= read -r -d $'\0' filepath; do
     for condition_name in "${!OTHER_CONDITIONS[@]}"; do
         pattern="${OTHER_CONDITIONS[$condition_name]}"
         description="${OTHER_CONDITIONS_DESC[$condition_name]}"
-        grep_options="-I -E -n -C 5 --color=never"
-        raw_matches=$(grep $grep_options -- "$pattern" <<<"$file_content" 2>/dev/null)
+        grep_options=(-I -E -n -C 5 --color=never)
+        raw_matches=$(grep "${grep_options[@]}" -- "$pattern" <<<"$file_content" 2>/dev/null)
         filtered_matches=$(filter_grep_output "$raw_matches" "" "$MSG_HIT_LINE_PREFIX")
         if [ -n "$filtered_matches" ]; then
             if [ "$other_log_header_printed" -eq 0 ]; then
-                printf "%s\n" "$SEPARATOR_LINE_LONG" >> "$OTHER_OUTPUT_FILE"
-                printf "${MSG_FILE_LABEL}\"%s\"\n" "$filepath" >> "$OTHER_OUTPUT_FILE"
+                {
+                    printf "%s\n" "$SEPARATOR_LINE_LONG"
+                    printf "${MSG_FILE_LABEL}\"%s\"\n" "$filepath"
+                } >> "$OTHER_OUTPUT_FILE"
                 other_log_header_printed=1
             fi
-            printf "%s\n" "$SEPARATOR_LINE_SHORT" >> "$OTHER_OUTPUT_FILE"
-            printf "${MSG_CONDITION_LABEL_OTHER}: %s %s\n" "$description" "$MSG_COMMENT_IGNORED_LABEL" >> "$OTHER_OUTPUT_FILE"
-            printf "${MSG_MATCHES_LABEL} (%s):\n" "$MSG_CONTEXT_LINES_LABEL" >> "$OTHER_OUTPUT_FILE"
-            printf '%s\n' "$filtered_matches" >> "$OTHER_OUTPUT_FILE"
+            {
+                printf "%s\n" "$SEPARATOR_LINE_SHORT"
+                printf "${MSG_CONDITION_LABEL_OTHER}: %s %s\n" "$description" "$MSG_COMMENT_IGNORED_LABEL"
+                printf "${MSG_MATCHES_LABEL} (%s):\n" "$MSG_CONTEXT_LINES_LABEL"
+                printf '%s\n' "$filtered_matches"
+            } >> "$OTHER_OUTPUT_FILE"
             other_match_found=1
         fi
     done
@@ -2493,10 +2469,12 @@ while IFS= read -r -d $'\0' filepath; do
     fi
     if [ ${#matched_categories[@]} -ge 2 ]; then
         mixed_summary=$(IFS=', '; printf '%s' "${matched_categories[*]}")
-        printf "%s\n" "$SEPARATOR_LINE_LONG" >> "$MIXED_OUTPUT_FILE"
-        printf "${MSG_FILE_LABEL}\"%s\"\n" "$filepath" >> "$MIXED_OUTPUT_FILE"
-        printf "${MSG_MIXED_CONDITIONS_LABEL}\n" "$mixed_summary" >> "$MIXED_OUTPUT_FILE"
-        printf "\n" >> "$MIXED_OUTPUT_FILE"
+        {
+            printf "%s\n" "$SEPARATOR_LINE_LONG"
+            printf "${MSG_FILE_LABEL}\"%s\"\n" "$filepath"
+            printf "${MSG_MIXED_CONDITIONS_LABEL}\n" "$mixed_summary"
+            printf "\n"
+        } >> "$MIXED_OUTPUT_FILE"
         if [ -z "${mixed_hits_written["$abs_filepath"]}" ]; then
             echo "$abs_filepath" >> "$MIXED_HITS_TEMP"
             mixed_hits_written["$abs_filepath"]=1
