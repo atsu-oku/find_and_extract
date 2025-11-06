@@ -103,7 +103,7 @@ format_i18n() {
     shift
     local formatted=""
     # shellcheck disable=SC2059
-    printf -v formatted "$format" "$@"
+    printf -v formatted -- "$format" "$@"
     printf '%s' "$formatted"
 }
 
@@ -232,6 +232,7 @@ if [[ "$ORIGINAL_LANG" == ja_JP* ]]; then
     MSG_SCAN_NEWPROD_COPY_SKIPPED="%s のコピーをキャンセルしました。"
     MSG_TRANSFORM_LOG_SAVED="ロールバックログを %s に保存しました。"
     MSG_TRANSFORM_TD_REPO_CURL_NOT_FOUND="curl が見つからないため td-agent リポジトリの疎通確認をスキップしました。"
+    MSG_TRANSFORM_TD_REPO_FORBIDDEN_WARNING="td_agentdのrepoにアクセスする前に、/etc/profile を source してください。また、この403エラーはFWでのホワイトリストに記載されていないことが理由なので、FWの設定を確認してください。"
     MSG_ROLLBACK_MODE_HEADER="--- ロールバックモード ---"
     MSG_ROLLBACK_LOG_NOT_FOUND="指定されたロールバックログが見つかりません: %s"
     MSG_ROLLBACK_INVALID_LINE="ロールバックログの形式が不正です: %s"
@@ -367,6 +368,7 @@ else
     MSG_SCAN_NEWPROD_COPY_SKIPPED="Skipped copying %s."
     MSG_TRANSFORM_LOG_SAVED="Rollback log saved to %s."
     MSG_TRANSFORM_TD_REPO_CURL_NOT_FOUND="curl not found; skipping td-agent repository connectivity check."
+    MSG_TRANSFORM_TD_REPO_FORBIDDEN_WARNING="Before accessing the td-agent repository, source /etc/profile. A 403 response means the host is not on the firewall whitelist, so connectivity to td.repo is blocked. Please verify the firewall configuration."
     MSG_ROLLBACK_MODE_HEADER="--- Rollback Mode ---"
     MSG_ROLLBACK_LOG_NOT_FOUND="Rollback log not found: %s"
     MSG_ROLLBACK_INVALID_LINE="Invalid rollback log entry: %s"
@@ -885,16 +887,19 @@ determine_td_repo_baseurl() {
     major=$(get_rhel_major_version)
     case "$major" in
         6)
-            printf '%s\n' "https://td-agent-package-browser.herokuapp.com/3/redhat/6/x86_64"
+            printf '%s\n' "https://packages.treasuredata.com/3/redhat/6/x86_64"
             ;;
         7)
-            printf '%s\n' "https://td-agent-package-browser.herokuapp.com/4/redhat/7/x86_64"
+            printf '%s\n' "https://packages.treasuredata.com/4/redhat/7/x86_64"
+            ;;
+        8)
+            printf '%s\n' "https://packages.treasuredata.com/4/redhat/8/x86_64"
             ;;
         9)
-            printf '%s\n' "https://td-agent-package-browser.herokuapp.com/4/redhat/9/x86_64"
+            printf '%s\n' "https://packages.treasuredata.com/4/redhat/9/x86_64"
             ;;
         *)
-            printf '%s\n' "https://td-agent-package-browser.herokuapp.com/4/redhat/7/x86_64"
+            printf '%s\n' "https://packages.treasuredata.com/4/redhat/7/x86_64"
             ;;
     esac
 }
@@ -920,15 +925,31 @@ check_and_adjust_td_repo_temp() {
     local status=0
     local curl_bin=""
     local probe_url=""
+    local http_code=""
     curl_bin=$(command -v curl || true)
     if [ -z "$curl_bin" ]; then
         TD_REPO_LAST_MESSAGE="$MSG_TRANSFORM_TD_REPO_CURL_NOT_FOUND"
     else
+        if [ -r /etc/profile ]; then
+            # shellcheck disable=SC1091
+            . /etc/profile
+        fi
         probe_url="${base_url%/}/repodata/repomd.xml"
-        if ! "$curl_bin" --silent --location --fail --head --max-time 10 "$probe_url" >/dev/null 2>&1; then
-            TD_REPO_LAST_MESSAGE="Failed to reach td-agent repository: $probe_url"
+        if ! http_code=$("$curl_bin" --silent --location --max-time 10 --output /dev/null --write-out '%{http_code}' "$probe_url" 2>/dev/null); then
             TD_REPO_LAST_FAILURE=1
             status=1
+            TD_REPO_LAST_MESSAGE="Failed to reach td-agent repository: $probe_url"
+        elif [ "$http_code" != "200" ]; then
+            TD_REPO_LAST_FAILURE=1
+            status=1
+            if [ "$http_code" = "403" ]; then
+                TD_REPO_LAST_MESSAGE=$(printf '%s\n%s' "Failed to reach td-agent repository: $probe_url" "$MSG_TRANSFORM_TD_REPO_FORBIDDEN_WARNING")
+            else
+                TD_REPO_LAST_MESSAGE="Failed to reach td-agent repository: $probe_url"
+            fi
+        fi
+        if [ "$status" -eq 1 ] && [ -z "$TD_REPO_LAST_MESSAGE" ]; then
+            TD_REPO_LAST_MESSAGE="Failed to reach td-agent repository: $probe_url"
         fi
     fi
     write_td_repo_content "$temp_file" "$base_url"
