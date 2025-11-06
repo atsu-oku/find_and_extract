@@ -7,6 +7,8 @@
 - td-agent リポジトリ適用後に `CentOS-*` リポジトリを `https://vault.centos.org` 固定・`$releasever` を取得したメジャーバージョンへ置換・`$basearch` を `x86_64` に固定し、全 `.repo` ファイルの `http://` を `https://` へ統一しました。
 - `yum-config-manager` / `dnf config-manager` で `remi-safe`, `remi-php*`, `zabbix`, `zabbix-non-supported` を無効化し、`yum install td-agent --disablerepo=* --enablerepo=treasuredata` を実行（出力は `/tmp/<user>/find_and_extract/td-agent-install.log` に保存）するようにしました。
 - ドライラン時にも CentOS 系および一般 `.repo` の書き換え差分を検出し、プレビュー ログで事前確認できるようになりました。
+- リポジトリ書き換えは `--skip-backup-files` を尊重し、バックアップと判定された `.repo` を対象外にします。
+- `newstaging/` から `newproduction/` へのコピーは不足ファイルを警告として残しつつ、プロンプトで承認すれば継続できるようになりました。
 
 ## v3.6.3.0 – 2025-11-05
 

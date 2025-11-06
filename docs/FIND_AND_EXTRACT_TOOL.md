@@ -100,11 +100,12 @@
 
    - 各ファイルに対し AWK スクリプトで置換を試行し、変更があった場合のみ一時ファイルと差分を記録。`/etc/profile` は STG 向け IP／ホスト名トークンを PRD 値に変換し、固定のプロキシ変数 (`http_proxy` / `https_proxy` / `HTTP_PROXY` / `HTTPS_PROXY`) を `http://172.16.162.6:3128/` に統一して追記する。
 
-   - `td-agent` リポジトリ (`/etc/yum.repos.d/td.repo`) は OS のメジャーバージョンに応じた URL（CentOS6: `/3/redhat/6/`, RHEL/CentOS7-8: `/4/redhat/{7,8}/`, RHEL9: `/4/redhat/9/`）と `https://packages.treasuredata.com/GPG-KEY-td-agent` の GPG キーに書き換え、適用前に疎通確認 (`curl --write-out '%{http_code}'`) を実施。適用後は CentOS 既存リポジトリ (`CentOS-*`, `.repo`) を vault.centos.org / 固定バージョン / x86_64 へ強制し、`http://` → `https://` を統一、さらに `remi-safe`, `remi-php*`, `zabbix`, `zabbix-non-supported` を無効化したうえで `yum install td-agent --disablerepo=* --enablerepo=treasuredata` を実行（ログ: `/tmp/<user>/find_and_extract/td-agent-install.log`）。
+   - `td-agent` リポジトリ (`/etc/yum.repos.d/td.repo`) は OS のメジャーバージョンに応じた URL（CentOS6: `/3/redhat/6/`, RHEL/CentOS7-8: `/4/redhat/{7,8}/`, RHEL9: `/4/redhat/9/`）と `https://packages.treasuredata.com/GPG-KEY-td-agent` の GPG キーに書き換え、適用前に疎通確認 (`curl --write-out '%{http_code}'`) を実施。適用後は CentOS 既存リポジトリ (`CentOS-*`, `.repo`) を vault.centos.org / 固定バージョン / x86_64 へ強制し、`http://` → `https://` を統一、さらに `remi-safe`, `remi-php*`, `zabbix`, `zabbix-non-supported` を無効化したうえで `yum install td-agent --disablerepo=* --enablerepo=treasuredata` を実行（ログ: `/tmp/<user>/find_and_extract/td-agent-install.log`）。 `--skip-backup-files` 指定時はバックアップと思しき `.repo` を処理対象から外します。
 
    - ドライラン時は差分プレビューを標準出力に整形（`As-Is` / `To-Be` セクション）し、同内容を `*_transform_preview.log` に出力。
 
 3. **適用 (`--apply`)**
+   - `/var/www/com/ipet-ins/<system>/fuel/app/config/` を扱う場合、`newstaging/` 側に不足ファイルがあっても警告を出したままコピーでき、プロンプトで `yes` を選択すれば `newproduction/` へ複製します。
 
    - すべての候補を一覧したのち、`yes` / `y` で確定。
 

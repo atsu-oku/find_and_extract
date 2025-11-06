@@ -105,9 +105,10 @@
 
 1. **事前チェック** – `/var` 配下の場合、`fuel/app/config/newproduction/` の必須ファイルを確認し、不足は警告ログへ記録。保護対象（nginx / Apache 設定など）は最初から除外。
 2. **対象ファイル抽出** – `scan` と同様に列挙し、バイナリ／大容量、バックアップ、`*.save`、`YYYYMMDD` を含むファイル名を除外。
-3. **変換処理** – AWK で IP・ホスト名・トークンを置換。`/etc/profile` は固定プロキシを追記しつつ STG トークンを PRD 化。`/etc/yum.repos.d/td.repo` は OS 判定で URL と GPG キーを更新し疎通確認を実施。適用後は CentOS リポジトリ (`CentOS-*`) の mirrorlist/baseurl/arch を vault 固定化し、全 `.repo` の `http://` → `https://` を行ったうえで、`remi-safe`, `remi-php*`, `zabbix`, `zabbix-non-supported` を無効化し、`yum install td-agent --disablerepo=* --enablerepo=treasuredata` を自動実行 (ログ出力付き)。
+3. **変換処理** – AWK で IP・ホスト名・トークンを置換。`/etc/profile` は固定プロキシを追記しつつ STG トークンを PRD 化。`/etc/yum.repos.d/td.repo` は OS 判定で URL と GPG キーを更新し疎通確認を実施。適用後は CentOS リポジトリ (`CentOS-*`) の mirrorlist/baseurl/arch を vault 固定化し、全 `.repo` の `http://` → `https://` を行ったうえで、`remi-safe`, `remi-php*`, `zabbix`, `zabbix-non-supported` を無効化し、`yum install td-agent --disablerepo=* --enablerepo=treasuredata` を自動実行 (ログ出力付き)。 --skip-backup-files 指定時はリポジトリ書き換えでもバックアップと思しき .repo を除外します。
 4. **ドライラン** – `As-Is / To-Be` の整形 diff を標準出力と `*_transform_preview.log` に記録。
 5. **本適用 (`--apply`)** – 対象件数を提示し、`yes` / `y` 以外はキャンセル。`*.bak_<timestamp>` を生成し、権限・所有者・グループを復元したうえで適用。結果は `*_transform.log` へ保存。
+   - `/var/www/com/ipet-ins/<system>/fuel/app/config/` を扱う場合、`newstaging/` に不足ファイルがあっても警告を残したままコピーは実行でき、プロンプトで `yes` を選択すれば `newproduction/` に複製します。
 
 ---
 
