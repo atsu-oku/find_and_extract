@@ -23,7 +23,7 @@ LAST_NON_EXIT_COMMAND=""
 trap 'PREVIOUS_COMMAND=$CURRENT_COMMAND; CURRENT_COMMAND=$BASH_COMMAND; if [[ "$BASH_COMMAND" != exit\ * ]]; then LAST_NON_EXIT_COMMAND=$BASH_COMMAND; fi' DEBUG
 
 # --- スクリプトバージョン ---
-SCRIPT_VERSION="3.6.1.0"
+SCRIPT_VERSION="3.6.4.0"
 
 # === 出力ディレクトリを /tmp に固定 ==================================
 # スクリプト名から拡張子(.sh)を除いた部分を取得
@@ -233,6 +233,15 @@ if [[ "$ORIGINAL_LANG" == ja_JP* ]]; then
     MSG_TRANSFORM_LOG_SAVED="ロールバックログを %s に保存しました。"
     MSG_TRANSFORM_TD_REPO_CURL_NOT_FOUND="curl が見つからないため td-agent リポジトリの疎通確認をスキップしました。"
     MSG_TRANSFORM_TD_REPO_FORBIDDEN_WARNING="td_agentdのrepoにアクセスする前に、/etc/profile を source してください。また、この403エラーはFWでのホワイトリストに記載されていないことが理由なので、FWの設定を確認してください。"
+    MSG_TRANSFORM_TD_AGENT_POST_TASKS_START="CentOS リポジトリの調整と td-agent インストール処理を開始します。"
+    MSG_TRANSFORM_TD_AGENT_POST_TASKS_COMPLETE="CentOS リポジトリの調整と td-agent インストール処理が完了しました。"
+    MSG_TRANSFORM_TD_AGENT_POST_TASKS_SED_FAILED="CentOS リポジトリの更新に失敗しました: %s"
+    MSG_TRANSFORM_TD_AGENT_POST_TASKS_HTTP_UPDATE_FAILED="yum リポジトリの http→https 変換に失敗しました: %s"
+    MSG_TRANSFORM_TD_AGENT_POST_TASKS_CONFIG_MANAGER_MISSING="yum-config-manager / dnf config-manager が見つからないため、不要リポジトリの無効化をスキップしました。"
+    MSG_TRANSFORM_TD_AGENT_POST_TASKS_CONFIG_DISABLE_FAILED="リポジトリ %s の無効化に失敗しました。"
+    MSG_TRANSFORM_TD_AGENT_POST_TASKS_PKG_TOOL_MISSING="yum/dnf が見つからないため、td-agent のインストールをスキップしました。"
+    MSG_TRANSFORM_TD_AGENT_INSTALL_SUCCESS="td-agent のインストールが完了しました (ログ: %s)。"
+    MSG_TRANSFORM_TD_AGENT_INSTALL_FAILED="td-agent のインストールに失敗しました。ログを確認してください: %s"
     MSG_ROLLBACK_MODE_HEADER="--- ロールバックモード ---"
     MSG_ROLLBACK_LOG_NOT_FOUND="指定されたロールバックログが見つかりません: %s"
     MSG_ROLLBACK_INVALID_LINE="ロールバックログの形式が不正です: %s"
@@ -369,6 +378,15 @@ else
     MSG_TRANSFORM_LOG_SAVED="Rollback log saved to %s."
     MSG_TRANSFORM_TD_REPO_CURL_NOT_FOUND="curl not found; skipping td-agent repository connectivity check."
     MSG_TRANSFORM_TD_REPO_FORBIDDEN_WARNING="Before accessing the td-agent repository, source /etc/profile. A 403 response means the host is not on the firewall whitelist, so connectivity to td.repo is blocked. Please verify the firewall configuration."
+    MSG_TRANSFORM_TD_AGENT_POST_TASKS_START="Starting CentOS repository adjustments and td-agent installation."
+    MSG_TRANSFORM_TD_AGENT_POST_TASKS_COMPLETE="CentOS repository adjustments and td-agent installation completed."
+    MSG_TRANSFORM_TD_AGENT_POST_TASKS_SED_FAILED="Failed to update CentOS repository definition: %s"
+    MSG_TRANSFORM_TD_AGENT_POST_TASKS_HTTP_UPDATE_FAILED="Failed to rewrite http→https in yum repository: %s"
+    MSG_TRANSFORM_TD_AGENT_POST_TASKS_CONFIG_MANAGER_MISSING="Missing yum-config-manager / dnf config-manager; skipping repository disable operations."
+    MSG_TRANSFORM_TD_AGENT_POST_TASKS_CONFIG_DISABLE_FAILED="Failed to disable repository %s."
+    MSG_TRANSFORM_TD_AGENT_POST_TASKS_PKG_TOOL_MISSING="Missing yum/dnf; skipping td-agent installation."
+    MSG_TRANSFORM_TD_AGENT_INSTALL_SUCCESS="td-agent installation completed (log: %s)."
+    MSG_TRANSFORM_TD_AGENT_INSTALL_FAILED="td-agent installation failed. See log: %s"
     MSG_ROLLBACK_MODE_HEADER="--- Rollback Mode ---"
     MSG_ROLLBACK_LOG_NOT_FOUND="Rollback log not found: %s"
     MSG_ROLLBACK_INVALID_LINE="Invalid rollback log entry: %s"
@@ -912,7 +930,7 @@ write_td_repo_content() {
 name=TreasureData
 baseurl=${base_url}
 gpgcheck=1
-gpgkey=https://s3.amazonaws.com/packages.treasuredata.com/GPG-KEY-td-agent
+gpgkey=https://packages.treasuredata.com/GPG-KEY-td-agent
 EOF
 }
 
@@ -954,6 +972,191 @@ check_and_adjust_td_repo_temp() {
     fi
     write_td_repo_content "$temp_file" "$base_url"
     return $status
+}
+
+apply_centos_repo_replacements() {
+    local target="$1"
+    local os_version="$2"
+    if ! sed -i \
+        -e 's/mirrorlist=/#mirrorlist=/g' \
+        -e 's|#baseurl=http://mirror.centos.org|baseurl=https://vault.centos.org|g' \
+        -e "s|\$releasever|$os_version|g" \
+        -e 's|\$basearch|x86_64|g' \
+        "$target" 2>/dev/null; then
+        return 1
+    fi
+    return 0
+}
+
+apply_repo_http_to_https() {
+    local target="$1"
+    if ! sed -i 's|http://|https://|g' "$target" 2>/dev/null; then
+        return 1
+    fi
+    return 0
+}
+
+prepare_repo_adjustments_for_preview() {
+    local os_version="$1"
+    local repo_file=""
+    while IFS= read -r -d $'\0' repo_file; do
+        if [ -z "$repo_file" ] || [ ! -f "$repo_file" ]; then
+            continue
+        fi
+        if [ "$repo_file" = "/etc/yum.repos.d/td.repo" ]; then
+            continue
+        fi
+        if [ "$SKIP_BACKUP_FILES_MODE" -eq 1 ] && is_backup_file_name "$(basename "$repo_file")"; then
+            continue
+        fi
+        if [ -n "${TRANSFORM_TEMP_PATHS[$repo_file]:-}" ]; then
+            continue
+        fi
+        local temp_transformed=""
+        temp_transformed=$(mktemp) || continue
+        if ! cp "$repo_file" "$temp_transformed" 2>/dev/null; then
+            rm -f "$temp_transformed" 2>/dev/null
+            continue
+        fi
+        local apply_status=0
+        local is_centos=0
+        if [[ "$repo_file" == /etc/yum.repos.d/CentOS-* ]]; then
+            is_centos=1
+            if ! apply_centos_repo_replacements "$temp_transformed" "$os_version"; then
+                apply_status=1
+            fi
+        fi
+        if [ $apply_status -eq 0 ]; then
+            if ! apply_repo_http_to_https "$temp_transformed"; then
+                apply_status=1
+            fi
+        fi
+        if [ $apply_status -ne 0 ]; then
+            rm -f "$temp_transformed" 2>/dev/null
+            continue
+        fi
+        if cmp -s "$repo_file" "$temp_transformed" 2>/dev/null; then
+            rm -f "$temp_transformed" 2>/dev/null
+            continue
+        fi
+        TRANSFORM_TEMP_PATHS["$repo_file"]="$temp_transformed"
+        TRANSFORM_CHANGED_FILES+=("$repo_file")
+        # shellcheck disable=SC2154
+        repo_adjustments_detected=1
+        # shellcheck disable=SC2154
+        total_files_scanned_transform=$((total_files_scanned_transform + 1))
+        local diff_file=""
+        diff_file=$(mktemp) || diff_file=""
+        if [ -n "$diff_file" ]; then
+            local diff_status
+            diff -u "$repo_file" "$temp_transformed" > "$diff_file" 2>/dev/null
+            diff_status=$?
+            if [ $diff_status -eq 0 ]; then
+                rm -f "$diff_file" 2>/dev/null
+                TRANSFORM_DIFF_PATHS["$repo_file"]=""
+            elif [ $diff_status -eq 1 ]; then
+                TRANSFORM_DIFF_PATHS["$repo_file"]="$diff_file"
+            else
+                rm -f "$diff_file" 2>/dev/null
+                TRANSFORM_DIFF_PATHS["$repo_file"]=""
+            fi
+        else
+            TRANSFORM_DIFF_PATHS["$repo_file"]=""
+        fi
+    done < <(find /etc/yum.repos.d -maxdepth 1 -type f \( -name 'CentOS-*' -o -name '*.repo' \) -print0 2>/dev/null || true)
+}
+
+perform_td_agent_post_tasks() {
+    local os_version
+    os_version=$(get_rhel_major_version)
+    local warnings=()
+    local centos_files=()
+    while IFS= read -r path; do
+        if [ -n "$path" ]; then
+            centos_files+=("$path")
+        fi
+    done < <(find /etc/yum.repos.d -maxdepth 1 -type f -name 'CentOS-*' 2>/dev/null || true)
+
+    printf "%s\n" "$MSG_TRANSFORM_TD_AGENT_POST_TASKS_START"
+
+    if [ ${#centos_files[@]} -gt 0 ]; then
+        local centos_file
+        for centos_file in "${centos_files[@]}"; do
+            if ! apply_centos_repo_replacements "$centos_file" "$os_version"; then
+                warnings+=("$(format_i18n "$MSG_TRANSFORM_TD_AGENT_POST_TASKS_SED_FAILED" "$centos_file")")
+            fi
+            if ! apply_repo_http_to_https "$centos_file"; then
+                warnings+=("$(format_i18n "$MSG_TRANSFORM_TD_AGENT_POST_TASKS_HTTP_UPDATE_FAILED" "$centos_file")")
+            fi
+        done
+    fi
+
+    local repo_files=()
+    while IFS= read -r path; do
+        if [ -n "$path" ]; then
+            repo_files+=("$path")
+        fi
+    done < <(find /etc/yum.repos.d -maxdepth 1 -type f -name '*.repo' 2>/dev/null || true)
+
+    if [ ${#repo_files[@]} -gt 0 ]; then
+        local repo_file
+        for repo_file in "${repo_files[@]}"; do
+            if [[ "$repo_file" == /etc/yum.repos.d/CentOS-* ]]; then
+                continue
+            fi
+            if ! apply_repo_http_to_https "$repo_file"; then
+                warnings+=("$(format_i18n "$MSG_TRANSFORM_TD_AGENT_POST_TASKS_HTTP_UPDATE_FAILED" "$repo_file")")
+            fi
+        done
+    fi
+
+    local config_manager_cmd=()
+    if command -v yum-config-manager >/dev/null 2>&1; then
+        config_manager_cmd=(yum-config-manager)
+    elif command -v dnf >/dev/null 2>&1; then
+        config_manager_cmd=(dnf config-manager)
+    fi
+
+    if [ ${#config_manager_cmd[@]} -gt 0 ]; then
+        local repo_to_disable
+        for repo_to_disable in remi-safe "remi-php*" zabbix zabbix-non-supported; do
+            if ! "${config_manager_cmd[@]}" --disable "$repo_to_disable" >/dev/null 2>&1; then
+                warnings+=("$(format_i18n "$MSG_TRANSFORM_TD_AGENT_POST_TASKS_CONFIG_DISABLE_FAILED" "$repo_to_disable")")
+            fi
+        done
+    else
+        warnings+=("$MSG_TRANSFORM_TD_AGENT_POST_TASKS_CONFIG_MANAGER_MISSING")
+    fi
+
+    local pkg_cmd=()
+    if command -v yum >/dev/null 2>&1; then
+        pkg_cmd=(yum)
+    elif command -v dnf >/dev/null 2>&1; then
+        pkg_cmd=(dnf)
+    fi
+
+    if [ ${#pkg_cmd[@]} -gt 0 ]; then
+        local install_log="${OUTPUT_DIR}/td-agent-install.log"
+        if ! "${pkg_cmd[@]}" install -y td-agent --disablerepo='*' --enablerepo='treasuredata' >"$install_log" 2>&1; then
+            warnings+=("$(format_i18n "$MSG_TRANSFORM_TD_AGENT_INSTALL_FAILED" "$install_log")")
+        else
+            printf "%s\n" "$(format_i18n "$MSG_TRANSFORM_TD_AGENT_INSTALL_SUCCESS" "$install_log")"
+        fi
+    else
+        warnings+=("$MSG_TRANSFORM_TD_AGENT_POST_TASKS_PKG_TOOL_MISSING")
+    fi
+
+    if [ ${#warnings[@]} -gt 0 ]; then
+        local warn_msg
+        for warn_msg in "${warnings[@]}"; do
+            printf '%s' "$MSG_ERROR_PREFIX" >&2
+            printf '%s\n' "$warn_msg" >&2
+        done
+        return 1
+    fi
+
+    printf "%s\n" "$MSG_TRANSFORM_TD_AGENT_POST_TASKS_COMPLETE"
+    return 0
 }
 
 # --- filter_grep_output: grepの出力を整形・フィルタリング ---
@@ -1356,25 +1559,27 @@ check_newproduction_structure() {
             local saved_ifs=$IFS
             IFS=', '; joined="${missing_newstg_files[*]}"
             IFS=$saved_ifs
-            status=1
             if [ "$emit_warning" -eq 1 ]; then
                 log_warning_message "$(format_i18n "$MSG_SCAN_NEWSTAGING_FILES_MISSING" "$newstaging_display" "$joined")"
             fi
-            if [ "$track_transform_failures" -eq 1 ]; then
-                local existing=""
-                local already_recorded=0
-                for existing in "${TRANSFORM_FAILED_FILES[@]}"; do
-                    if [ "$existing" = "$newstaging_dir" ]; then
-                        already_recorded=1
-                        break
+            if [ "$allow_copy" -ne 1 ]; then
+                status=1
+                if [ "$track_transform_failures" -eq 1 ]; then
+                    local existing=""
+                    local already_recorded=0
+                    for existing in "${TRANSFORM_FAILED_FILES[@]}"; do
+                        if [ "$existing" = "$newstaging_dir" ]; then
+                            already_recorded=1
+                            break
+                        fi
+                    done
+                    if [ $already_recorded -eq 0 ]; then
+                        TRANSFORM_FAILED_FILES+=("$newstaging_dir")
                     fi
-                done
-                if [ $already_recorded -eq 0 ]; then
-                    TRANSFORM_FAILED_FILES+=("$newstaging_dir")
+                    TRANSFORM_FAILURE_MESSAGES["$newstaging_dir"]=$(format_i18n "$MSG_SCAN_NEWSTAGING_FILES_MISSING" "$newstaging_display" "$joined")
                 fi
-                TRANSFORM_FAILURE_MESSAGES["$newstaging_dir"]=$(format_i18n "$MSG_SCAN_NEWSTAGING_FILES_MISSING" "$newstaging_display" "$joined")
+                continue
             fi
-            continue
         fi
 
         if [ "$allow_copy" -eq 1 ] && [ "$newproduction_needs_copy" -eq 1 ]; then
@@ -1471,6 +1676,9 @@ run_transform() {
     host_for_log="$(hostname 2>/dev/null || echo unknown)"
     local transform_diff_log=""
     local preview_timestamp=""
+    local transform_os_major=""
+    transform_os_major=$(get_rhel_major_version)
+    local repo_adjustments_detected=0
     if [ "$SEARCH_PATH" = "/var" ] || [ "$SEARCH_PATH" = "/var/" ]; then
         local structure_mode="transform_dry"
         if [ "$TRANSFORM_DRY_RUN" -eq 0 ]; then
@@ -1530,6 +1738,7 @@ run_transform() {
             fi
             TRANSFORM_TEMP_PATHS["$filepath"]="$temp_transformed"
             TRANSFORM_CHANGED_FILES+=("$filepath")
+            repo_adjustments_detected=1
             diff_file=$(mktemp) || diff_file=""
             if [ -n "$diff_file" ]; then
                 local diff_status
@@ -1547,6 +1756,10 @@ run_transform() {
             else
                 TRANSFORM_DIFF_PATHS["$filepath"]=""
             fi
+            continue
+        fi
+        if [[ "$filepath" == /etc/yum.repos.d/*.repo ]]; then
+            total_files_scanned_transform=$((total_files_scanned_transform + 1))
             continue
         fi
         total_files_scanned_transform=$((total_files_scanned_transform + 1))
@@ -1843,6 +2056,9 @@ AWK
             format_i18n "$MSG_ERROR_TRANSFORM_EXECUTION" "$transform_output" >&2
         fi
     done < <(find "$SEARCH_PATH" -path '*/selinux/*' -prune -o -type f -not -name '*#*' -print0)
+    if [[ "$SEARCH_PATH" == /etc* ]]; then
+        prepare_repo_adjustments_for_preview "$transform_os_major"
+    fi
     if [ "$CANCEL_REQUESTED" -ne 0 ]; then
         printf "%s\n" "$MSG_OPERATION_CANCELLED"
         return 130
@@ -1887,6 +2103,7 @@ AWK
     else
         chmod 600 "$transform_diff_log" 2>/dev/null || true
     fi
+    local td_repo_applied=0
     for file in "${sorted_changed_files[@]}"; do
         if [ "$CANCEL_REQUESTED" -ne 0 ]; then
             break
@@ -2039,6 +2256,9 @@ AWK
             chown "$orig_owner:$orig_group" "$file" 2>/dev/null || true
         fi
         format_i18n "$MSG_TRANSFORM_FILE_CHANGED\n" "$file" "$backup_path"
+        if [ "$file" = "/etc/yum.repos.d/td.repo" ]; then
+            td_repo_applied=1
+        fi
         if [ -n "$temp_file" ]; then rm -f "$temp_file" 2>/dev/null; fi
         if [ -n "$diff_saved" ]; then rm -f "$diff_saved" 2>/dev/null; fi
         unset 'TRANSFORM_TEMP_PATHS[$file]'
@@ -2049,6 +2269,11 @@ AWK
         fi
     done
     TRANSFORM_CHANGED_FILES=()
+    if [ "$TRANSFORM_DRY_RUN" -eq 0 ] && [ "$CANCEL_REQUESTED" -eq 0 ]; then
+        if [ "$td_repo_applied" -eq 1 ] || [ "$repo_adjustments_detected" -eq 1 ]; then
+            perform_td_agent_post_tasks || true
+        fi
+    fi
     if [ $apply_failures -eq 0 ]; then
         printf "%s\n" "$MSG_TRANSFORM_APPLY_COMPLETED"
         if [ -n "$change_log" ] && [ -f "$change_log" ]; then

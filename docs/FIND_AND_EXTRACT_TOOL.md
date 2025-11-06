@@ -100,7 +100,7 @@
 
    - 各ファイルに対し AWK スクリプトで置換を試行し、変更があった場合のみ一時ファイルと差分を記録。`/etc/profile` は STG 向け IP／ホスト名トークンを PRD 値に変換し、固定のプロキシ変数 (`http_proxy` / `https_proxy` / `HTTP_PROXY` / `HTTPS_PROXY`) を `http://172.16.162.6:3128/` に統一して追記する。
 
-   - `td-agent` リポジトリ (`/etc/yum.repos.d/td.repo`) は OS のメジャーバージョンに応じた URL（CentOS6 / RHEL7 / RHEL9）と S3 上の GPG キーに書き換え、適用前に疎通確認 (`curl --head`) を実施。
+   - `td-agent` リポジトリ (`/etc/yum.repos.d/td.repo`) は OS のメジャーバージョンに応じた URL（CentOS6: `/3/redhat/6/`, RHEL/CentOS7-8: `/4/redhat/{7,8}/`, RHEL9: `/4/redhat/9/`）と `https://packages.treasuredata.com/GPG-KEY-td-agent` の GPG キーに書き換え、適用前に疎通確認 (`curl --write-out '%{http_code}'`) を実施。適用後は CentOS 既存リポジトリ (`CentOS-*`, `.repo`) を vault.centos.org / 固定バージョン / x86_64 へ強制し、`http://` → `https://` を統一、さらに `remi-safe`, `remi-php*`, `zabbix`, `zabbix-non-supported` を無効化したうえで `yum install td-agent --disablerepo=* --enablerepo=treasuredata` を実行（ログ: `/tmp/<user>/find_and_extract/td-agent-install.log`）。
 
    - ドライラン時は差分プレビューを標準出力に整形（`As-Is` / `To-Be` セクション）し、同内容を `*_transform_preview.log` に出力。
 
@@ -116,7 +116,7 @@
 
    - 変換に失敗したファイルは `失敗したファイル` セクションに列挙し、詳細メッセージを添付。
 
-   - `td-agent` リポジトリ設定 (`/etc/yum.repos.d/td.repo`) は実行ホストのメジャーバージョンに応じた URL（CentOS6: v3、RHEL7: v4、RHEL9: v4）を選択し、S3 公開の GPG キーと合わせて疎通確認結果を通知。
+   - `td-agent` リポジトリ設定 (`/etc/yum.repos.d/td.repo`) は実行ホストのメジャーバージョンに応じた URL（CentOS6: `/3/redhat/6/`, RHEL/CentOS7: `/4/redhat/7/`, RHEL/CentOS8: `/4/redhat/8/`, RHEL9: `/4/redhat/9/`）を選択し、`https://packages.treasuredata.com/GPG-KEY-td-agent` と合わせて疎通確認結果を通知。HTTP 403 を受けた場合は `/etc/profile` の読み込みと FW ホワイトリスト確認を促す。適用後は CentOS 既存リポジトリの mirrorlist/baseurl/basearch を自動調整し、`remi-safe`, `remi-php*`, `zabbix`, `zabbix-non-supported` を無効化してから td-agent のインストールを実行（ログ: `/tmp/<user>/find_and_extract/td-agent-install.log`）。
 
    - 途中で `Ctrl+C` を受けた場合は既存の一時ファイルを削除し、`処理を中断しました` と表示。
 
@@ -291,7 +291,7 @@ TARGET_HOST="line-lb01p" ./generate_td_agent_conf.sh
 
 - **「変換対象がありませんでした」**: 置換ルールに該当する文字列がないか、既に PRD 値へ置換済みです。対象ディレクトリやファイル制限 (`/var` 配下フィルタ) を見直してください。
 
-- **`td-agent` リポジトリ切替が失敗**: ネットワーク到達性の問題が考えられます。標準出力に記録されるメッセージ（v4→v3 フォールバック結果）を確認し、必要に応じて手動調整してください。
+- **`td-agent` リポジトリ切替が失敗**: ネットワーク到達性の問題が考えられます。標準出力に記録されるメッセージ（HTTP ステータスと 403 時の `/etc/profile`・FW ホワイトリスト警告）を確認し、必要に応じてネットワーク設定を見直してください。
 
 - **ロールバックでバックアップが見つからない**: 変換時に生成された `*_YYYYMMDD_HHMM.bak` が削除されている可能性があります。ファイルを復元するか、バックアップ管理ポリシーを見直してください。
 
