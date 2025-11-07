@@ -1993,12 +1993,21 @@ function replace_stg_tokens(str, prefix, suffix, before_char, after_char, result
     if (proxy_enabled) {
         line_to_check = line
         sub(/^[[:space:]]+/, "", line_to_check)
+        remove_current_line = 0
         for (i = 1; i <= proxy_var_count; i++) {
             var_name = proxy_var_order[i]
             regex = "^(export[[:space:]]+)?" var_name "="
             if (line_to_check ~ regex) {
-                existing_proxy[var_name] = 1
+                if (var_name == "no_proxy" || var_name == "NO_PROXY") {
+                    remove_current_line = 1
+                    changed = 1
+                } else {
+                    existing_proxy[var_name] = 1
+                }
             }
+        }
+        if (remove_current_line == 1) {
+            next
         }
     }
 

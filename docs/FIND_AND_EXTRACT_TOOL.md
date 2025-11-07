@@ -99,7 +99,7 @@
 - `scan` と同じ要領でファイルを列挙し、バイナリ／バックアップに加えて `*.save`、およびファイル名に 8 桁の年月日（`YYYYMMDD`）を含むものを自動で除外。
 - 各ファイルに対し AWK スクリプトで置換を試行し、変更があった場合のみ一時ファイルと差分を記録。`/etc/profile` は STG 向け IP／ホスト名トークンを PRD 値に変換し、固定のプロキシ変数 (`http_proxy` / `https_proxy` / `HTTP_PROXY` / `HTTPS_PROXY`) を `http://172.16.162.6:3128/` に統一して追記する。
 - `td-agent` リポジトリ (`/etc/yum.repos.d/td.repo`) は OS のメジャーバージョンに応じた URL（CentOS6: `/3/redhat/6/`, RHEL/CentOS7-8: `/4/redhat/{7,8}/`, RHEL9: `/4/redhat/9/`）と `https://packages.treasuredata.com/GPG-KEY-td-agent` の GPG キーに書き換え、適用前に疎通確認 (`curl --write-out '%{http_code}'`) を実施。適用後は CentOS 既存リポジトリ (`CentOS-*`, `.repo`) を vault.centos.org / 固定バージョン / x86_64 へ強制し、`http://` → `https://` を統一、さらに `remi-safe`, `remi-php*`, `zabbix`, `zabbix-non-supported` を無効化したうえで `yum update td-agent --disablerepo=* --enablerepo=treasuredata` を実行（未導入なら `yum install td-agent ...` を追加実行。ログは `/tmp/<user>/find_and_extract/td-agent-update.log` および `/td-agent-install.log` に保存）。 `--skip-backup-files` 指定時はバックアップと思しき `.repo` を処理対象から外します。
-- `no_proxy` / `NO_PROXY` / `NO_PROXT` を `127.0.0.1, localhost, 172.16.0.0/16`（ホスト名が `*-01s` または `*-01p` の場合は `<prefix>-01h`, `<prefix>-02h` を追記）でエクスポートし、存在しない場合に限って追記。
+- `no_proxy` / `NO_PROXY` を `127.0.0.1, localhost, 172.16.0.0/16`（ホスト名が `*-01s` または `*-01p` の場合は `<prefix>-01h`, `<prefix>-02h` を追記）でエクスポートし、既存定義があれば削除したうえで所定値に置き換える。
 - ドライラン時は差分プレビューを標準出力に整形（`As-Is` / `To-Be` セクション）し、同内容を `*_transform_preview.log` に出力。
 
 3. **適用 (`--apply`)**

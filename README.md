@@ -37,7 +37,7 @@
 - `/etc/profile` の自動整備 🧼:
   - STG 用 IP・ホスト名・`stg` トークンを PRD 向けへ変換
   - `http_proxy` / `https_proxy` / `HTTP_PROXY` / `HTTPS_PROXY` を `http://172.16.162.6:3128/` に統一して追記（既存値があれば保持）
-  - `no_proxy` / `NO_PROXY` / `NO_PROXT` を `127.0.0.1, localhost, 172.16.0.0/16`（ホスト名が `*-01s` / `*-01p` の場合は `<prefix>-01h`, `<prefix>-02h` も追加）に設定
+  - `no_proxy` / `NO_PROXY` を `127.0.0.1, localhost, 172.16.0.0/16`（ホスト名が `*-01s` / `*-01p` の場合は `<prefix>-01h`, `<prefix>-02h` も追加）に設定（既存値があれば削除して所定値をセット）
 - Treasure Data (td-agent) リポジトリ生成 📦:
   - RHEL/CentOS 6 ⇒ `https://packages.treasuredata.com/3/redhat/6/x86_64`
   - RHEL/CentOS 7 ⇒ `https://packages.treasuredata.com/4/redhat/7/x86_64`
