@@ -1,11 +1,17 @@
-﻿# find_and_extract.sh 更新履歴（日本語版）
+# find_and_extract.sh 更新履歴（日本語版）
 
 本書は `find_and_extract.sh` の変更内容を日本語でまとめたものです。同梱の `CHANGELOG.md` と同じ内容を和訳し、最新版の挙動に合わせた補足を含みます。
+
+## v3.6.4.1 - 2025-11-07
+
+- RHEL/CentOS 6 環境では常に td-agent 3 リポジトリ（`/3/redhat/6/`）を生成し、td-agent 4 へのフォールバックを廃止しました。
+- `yum update td-agent` が失敗しても、その後の `yum install` が成功した場合は警告を出さないよう調整しました。
+- README / 運用ガイド / 仕様書 / 日本語 changelog を最新の td-agent 更新フローに合わせて更新しました。
 
 ## v3.6.4.0 - 2025-11-06
 
 - td-agent リポジトリ適用後に `CentOS-*` リポジトリを `https://vault.centos.org` 固定・`$releasever` を取得したメジャーバージョンへ置換・`$basearch` を `x86_64` に固定し、全 `.repo` ファイルの `http://` を `https://` へ統一しました。
-- `yum-config-manager` / `dnf config-manager` で `remi-safe`, `remi-php*`, `zabbix`, `zabbix-non-supported` を無効化し、`yum update td-agent --disablerepo=* --enablerepo=treasuredata` を実行するようにしました（RHEL6 は失敗時に td-agent 3 リポジトリへ切替えて再実行し、未インストールの場合は `yum install td-agent ...` を追加実行します。出力は `/tmp/<user>/find_and_extract/td-agent-update*.log` および `/td-agent-install.log` に保存）。
+- `yum-config-manager` / `dnf config-manager` で `remi-safe`, `remi-php*`, `zabbix`, `zabbix-non-supported` を無効化し、`yum update td-agent --disablerepo=* --enablerepo=treasuredata` を実行するようにしました（RHEL6 は td-agent 3 リポジトリを利用します。未インストールの場合は `yum install td-agent ...` を追加実行し、出力は `/tmp/<user>/find_and_extract/td-agent-update.log` および `/td-agent-install.log` に保存）。
 - ドライラン時にも CentOS 系および一般 `.repo` の書き換え差分を検出し、プレビュー ログで事前確認できるようになりました。
 - リポジトリ書き換えは `--skip-backup-files` を尊重し、バックアップと判定された `.repo` を対象外にします。
 - `newstaging/` から `newproduction/` へのコピーは不足ファイルを警告として残しつつ、プロンプトで承認すれば継続できるようになりました。
