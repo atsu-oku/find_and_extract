@@ -38,7 +38,7 @@
   - STG 用 IP・ホスト名・`stg` トークンを PRD 向けへ変換
   - `http_proxy` / `https_proxy` / `HTTP_PROXY` / `HTTPS_PROXY` を `http://172.16.162.6:3128/` に統一して追記（既存値があれば保持）
 - Treasure Data (td-agent) リポジトリ生成 📦:
-  - RHEL/CentOS 6 ⇒ `https://packages.treasuredata.com/3/redhat/6/x86_64`
+  - RHEL/CentOS 6 ⇒ まず `https://packages.treasuredata.com/4/redhat/6/x86_64` を採用し、`yum update td-agent` が失敗した場合にのみ `/3/redhat/6/` へフォールバック
   - RHEL/CentOS 7 ⇒ `https://packages.treasuredata.com/4/redhat/7/x86_64`
   - RHEL/CentOS 8 ⇒ `https://packages.treasuredata.com/4/redhat/8/x86_64`
   - RHEL 9 ⇒ `https://packages.treasuredata.com/4/redhat/9/x86_64`
@@ -46,7 +46,7 @@
   - CentOS リポジトリ (`/etc/yum.repos.d/CentOS-*`) を vault.centos.org / 固定バージョン / x86_64 に書き換え、全 `.repo` の `http://` を `https://` へ統一
   - `yum-config-manager` / `dnf config-manager` で `remi-safe`, `remi-php*`, `zabbix`, `zabbix-non-supported` を無効化
   - 403 応答時は `/etc/profile` の読み込みと FW ホワイトリスト確認を促す警告を出力
-  - `yum install td-agent --disablerepo=* --enablerepo=treasuredata` を自動実行し、ログを `/tmp/<user>/find_and_extract/td-agent-install.log` に保存
+  - `yum update td-agent --disablerepo=* --enablerepo=treasuredata` を試行し、ログを `/tmp/<user>/find_and_extract/td-agent-update.log` に保存（RHEL6 では失敗時に td-agent 3 リポジトリへ切替えて再試行）。未インストール時は `yum install td-agent --disablerepo=* --enablerepo=treasuredata` を実行し、結果を `/tmp/<user>/find_and_extract/td-agent-install.log` に記録
 - 編集途中ファイルを誤変換しない配慮 🙌:
   - `*.save` や `YYYYMMDD` を含むファイル名を除外
   - バイナリ／10 MiB 超／バックアップ風のファイルもスキップ
@@ -105,7 +105,7 @@
 
 1. **事前チェック** – `/var` 配下の場合、`fuel/app/config/newproduction/` の必須ファイルを確認し、不足は警告ログへ記録。保護対象（nginx / Apache 設定など）は最初から除外。
 2. **対象ファイル抽出** – `scan` と同様に列挙し、バイナリ／大容量、バックアップ、`*.save`、`YYYYMMDD` を含むファイル名を除外。
-3. **変換処理** – AWK で IP・ホスト名・トークンを置換。`/etc/profile` は固定プロキシを追記しつつ STG トークンを PRD 化。`/etc/yum.repos.d/td.repo` は OS 判定で URL と GPG キーを更新し疎通確認を実施。適用後は CentOS リポジトリ (`CentOS-*`) の mirrorlist/baseurl/arch を vault 固定化し、全 `.repo` の `http://` → `https://` を行ったうえで、`remi-safe`, `remi-php*`, `zabbix`, `zabbix-non-supported` を無効化し、`yum install td-agent --disablerepo=* --enablerepo=treasuredata` を自動実行 (ログ出力付き)。 --skip-backup-files 指定時はリポジトリ書き換えでもバックアップと思しき .repo を除外します。
+3. **変換処理** – AWK で IP・ホスト名・トークンを置換。`/etc/profile` は固定プロキシを追記しつつ STG トークンを PRD 化。`/etc/yum.repos.d/td.repo` は OS 判定で URL と GPG キーを更新し疎通確認を実施（RHEL6 は td-agent 4→3 のフォールバックを搭載）。適用後は CentOS リポジトリ (`CentOS-*`) の mirrorlist/baseurl/arch を vault 固定化し、全 `.repo` の `http://` → `https://` を行ったうえで、`remi-safe`, `remi-php*`, `zabbix`, `zabbix-non-supported` を無効化。最後に `yum update td-agent --disablerepo=* --enablerepo=treasuredata` を実行し、失敗時（RHEL6 のみ）は td-agent 3 リポジトリに書き換えて再実行、未導入であれば `yum install td-agent ...` を追加実行します。`--skip-backup-files` 指定時はリポジトリ書き換えでもバックアップと思しき `.repo` を除外します。
 4. **ドライラン** – `As-Is / To-Be` の整形 diff を標準出力と `*_transform_preview.log` に記録。
 5. **本適用 (`--apply`)** – 対象件数を提示し、`yes` / `y` 以外はキャンセル。`*.bak_<timestamp>` を生成し、権限・所有者・グループを復元したうえで適用。結果は `*_transform.log` へ保存。
    - `/var/www/com/ipet-ins/<system>/fuel/app/config/` を扱う場合、`newstaging/` に不足ファイルがあっても警告を残したままコピーは実行でき、プロンプトで `yes` を選択すれば `newproduction/` に複製します。
@@ -155,7 +155,7 @@
 
 - Treasure Data リポジトリ URL と GPG キーを `packages.treasuredata.com` 系へ統一し、403 応答時の警告を強化
 - CentOS 系リポジトリ (`CentOS-*`, `.repo`) の mirrorlist/baseurl/basearch を vault 固定化し、`http://` → `https://` に統一
-- `remi-safe`, `remi-php*`, `zabbix`, `zabbix-non-supported` のリポジトリを自動無効化し、`yum install td-agent --disablerepo=* --enablerepo=treasuredata` を実行
+- `remi-safe`, `remi-php*`, `zabbix`, `zabbix-non-supported` のリポジトリを自動無効化し、`yum update td-agent --disablerepo=* --enablerepo=treasuredata`（必要に応じて td-agent 3 へフォールバック＆インストール）を実行
 - 編集途中ファイルを対象外とする除外ルールの追加
 
 運用自動化にぜひご活用ください！🚀
