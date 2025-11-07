@@ -1834,8 +1834,8 @@ run_transform() {
             no_proxy_components+=("172.16.0.0/16")
             no_proxy_value=$(printf '%s, ' "${no_proxy_components[@]}")
             no_proxy_value=${no_proxy_value%, }
-            proxy_collect_names+=(no_proxy NO_PROXY NO_PROXT)
-            proxy_collect_values+=("$no_proxy_value" "$no_proxy_value" "$no_proxy_value")
+            proxy_collect_names+=(no_proxy NO_PROXY)
+            proxy_collect_values+=("$no_proxy_value" "$no_proxy_value")
             for idx in "${!proxy_collect_values[@]}"; do
                 local proxy_value="${proxy_collect_values[idx]}"
                 proxy_value=${proxy_value//\\/\\\\}
