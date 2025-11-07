@@ -239,9 +239,13 @@ if [[ "$ORIGINAL_LANG" == ja_JP* ]]; then
     MSG_TRANSFORM_TD_AGENT_POST_TASKS_HTTP_UPDATE_FAILED="yum リポジトリの http→https 変換に失敗しました: %s"
     MSG_TRANSFORM_TD_AGENT_POST_TASKS_CONFIG_MANAGER_MISSING="yum-config-manager / dnf config-manager が見つからないため、不要リポジトリの無効化をスキップしました。"
     MSG_TRANSFORM_TD_AGENT_POST_TASKS_CONFIG_DISABLE_FAILED="リポジトリ %s の無効化に失敗しました。"
-    MSG_TRANSFORM_TD_AGENT_POST_TASKS_PKG_TOOL_MISSING="yum/dnf が見つからないため、td-agent のインストールをスキップしました。"
-    MSG_TRANSFORM_TD_AGENT_INSTALL_SUCCESS="td-agent のインストールが完了しました (ログ: %s)。"
-    MSG_TRANSFORM_TD_AGENT_INSTALL_FAILED="td-agent のインストールに失敗しました。ログを確認してください: %s"
+    MSG_TRANSFORM_TD_AGENT_POST_TASKS_PKG_TOOL_MISSING="yum/dnf が見つからないため、td-agent のアップデート/インストールをスキップしました。"
+    MSG_TRANSFORM_TD_AGENT_INSTALL_SUCCESS="td-agent のアップデート/インストールが完了しました (ログ: %s)。"
+    MSG_TRANSFORM_TD_AGENT_INSTALL_FAILED="td-agent のアップデート/インストールに失敗しました。ログを確認してください: %s"
+    MSG_TRANSFORM_TD_AGENT_UPDATE_FALLBACK_NOTICE="td-agent 4 へのアップデートに失敗したため、td.repo を td-agent 3 に切り替え再実行します。"
+    MSG_TRANSFORM_TD_AGENT_UPDATE_FALLBACK_SUCCESS="td-agent 3 リポジトリでのアップデートが完了しました (ログ: %s)。"
+    MSG_TRANSFORM_TD_AGENT_UPDATE_FALLBACK_FAILED="td-agent 3 リポジトリでのアップデートにも失敗しました。ログ: %s"
+    MSG_TRANSFORM_TD_AGENT_UPDATE_FALLBACK_REPO_WRITE_FAILED="td.repo の書き換えに失敗したため、td-agent 3 での再試行を行えません。"
     MSG_ROLLBACK_MODE_HEADER="--- ロールバックモード ---"
     MSG_ROLLBACK_LOG_NOT_FOUND="指定されたロールバックログが見つかりません: %s"
     MSG_ROLLBACK_INVALID_LINE="ロールバックログの形式が不正です: %s"
@@ -384,9 +388,13 @@ else
     MSG_TRANSFORM_TD_AGENT_POST_TASKS_HTTP_UPDATE_FAILED="Failed to rewrite http→https in yum repository: %s"
     MSG_TRANSFORM_TD_AGENT_POST_TASKS_CONFIG_MANAGER_MISSING="Missing yum-config-manager / dnf config-manager; skipping repository disable operations."
     MSG_TRANSFORM_TD_AGENT_POST_TASKS_CONFIG_DISABLE_FAILED="Failed to disable repository %s."
-    MSG_TRANSFORM_TD_AGENT_POST_TASKS_PKG_TOOL_MISSING="Missing yum/dnf; skipping td-agent installation."
-    MSG_TRANSFORM_TD_AGENT_INSTALL_SUCCESS="td-agent installation completed (log: %s)."
-    MSG_TRANSFORM_TD_AGENT_INSTALL_FAILED="td-agent installation failed. See log: %s"
+    MSG_TRANSFORM_TD_AGENT_POST_TASKS_PKG_TOOL_MISSING="Missing yum/dnf; skipping td-agent update/installation."
+    MSG_TRANSFORM_TD_AGENT_INSTALL_SUCCESS="td-agent update/installation completed (log: %s)."
+    MSG_TRANSFORM_TD_AGENT_INSTALL_FAILED="td-agent update/installation failed. See log: %s"
+    MSG_TRANSFORM_TD_AGENT_UPDATE_FALLBACK_NOTICE="td-agent 4 update failed; switching td.repo to td-agent 3 and retrying."
+    MSG_TRANSFORM_TD_AGENT_UPDATE_FALLBACK_SUCCESS="td-agent update succeeded using td-agent 3 repository (log: %s)."
+    MSG_TRANSFORM_TD_AGENT_UPDATE_FALLBACK_FAILED="td-agent update still failed when using td-agent 3 repository. See log: %s"
+    MSG_TRANSFORM_TD_AGENT_UPDATE_FALLBACK_REPO_WRITE_FAILED="Failed to rewrite td.repo for td-agent 3 fallback; cannot retry update."
     MSG_ROLLBACK_MODE_HEADER="--- Rollback Mode ---"
     MSG_ROLLBACK_LOG_NOT_FOUND="Rollback log not found: %s"
     MSG_ROLLBACK_INVALID_LINE="Invalid rollback log entry: %s"
@@ -905,7 +913,7 @@ determine_td_repo_baseurl() {
     major=$(get_rhel_major_version)
     case "$major" in
         6)
-            printf '%s\n' "https://packages.treasuredata.com/3/redhat/6/x86_64"
+            printf '%s\n' "https://packages.treasuredata.com/4/redhat/6/x86_64"
             ;;
         7)
             printf '%s\n' "https://packages.treasuredata.com/4/redhat/7/x86_64"
@@ -918,6 +926,19 @@ determine_td_repo_baseurl() {
             ;;
         *)
             printf '%s\n' "https://packages.treasuredata.com/4/redhat/7/x86_64"
+            ;;
+    esac
+}
+
+determine_td_repo_fallback_baseurl() {
+    local major
+    major=$(get_rhel_major_version)
+    case "$major" in
+        6)
+            printf '%s\n' "https://packages.treasuredata.com/3/redhat/6/x86_64"
+            ;;
+        *)
+            printf '\n'
             ;;
     esac
 }
@@ -977,12 +998,10 @@ check_and_adjust_td_repo_temp() {
 apply_centos_repo_replacements() {
     local target="$1"
     local os_version="$2"
-    if ! sed -i \
-        -e 's/mirrorlist=/#mirrorlist=/g' \
+    if ! sed -i -e 's/mirrorlist=/#mirrorlist=/g' \
         -e 's|#baseurl=http://mirror.centos.org|baseurl=https://vault.centos.org|g' \
         -e "s|\$releasever|$os_version|g" \
-        -e 's|\$basearch|x86_64|g' \
-        "$target" 2>/dev/null; then
+        -e 's|\$basearch|x86_64|g' "$target" 2>/dev/null; then
         return 1
     fi
     return 0
@@ -1019,9 +1038,7 @@ prepare_repo_adjustments_for_preview() {
             continue
         fi
         local apply_status=0
-        local is_centos=0
         if [[ "$repo_file" == /etc/yum.repos.d/CentOS-* ]]; then
-            is_centos=1
             if ! apply_centos_repo_replacements "$temp_transformed" "$os_version"; then
                 apply_status=1
             fi
@@ -1136,11 +1153,44 @@ perform_td_agent_post_tasks() {
     fi
 
     if [ ${#pkg_cmd[@]} -gt 0 ]; then
-        local install_log="${OUTPUT_DIR}/td-agent-install.log"
-        if ! "${pkg_cmd[@]}" install -y td-agent --disablerepo='*' --enablerepo='treasuredata' >"$install_log" 2>&1; then
-            warnings+=("$(format_i18n "$MSG_TRANSFORM_TD_AGENT_INSTALL_FAILED" "$install_log")")
+        local update_log="${OUTPUT_DIR}/td-agent-update.log"
+        local final_log="$update_log"
+        local update_success=0
+        if "${pkg_cmd[@]}" update -y td-agent --disablerepo='*' --enablerepo='treasuredata' >"$update_log" 2>&1; then
+            update_success=1
         else
-            printf "%s\n" "$(format_i18n "$MSG_TRANSFORM_TD_AGENT_INSTALL_SUCCESS" "$install_log")"
+            if [ "$os_version" = "6" ]; then
+                local fallback_repo_url
+                fallback_repo_url=$(determine_td_repo_fallback_baseurl)
+                if [ -n "$fallback_repo_url" ]; then
+                    printf "%s\n" "$MSG_TRANSFORM_TD_AGENT_UPDATE_FALLBACK_NOTICE"
+                    if write_td_repo_content "/etc/yum.repos.d/td.repo" "$fallback_repo_url"; then
+                        local fallback_log="${OUTPUT_DIR}/td-agent-update-fallback.log"
+                        if "${pkg_cmd[@]}" update -y td-agent --disablerepo='*' --enablerepo='treasuredata' >"$fallback_log" 2>&1; then
+                            update_success=1
+                            final_log="$fallback_log"
+                            printf "%s\n" "$(format_i18n "$MSG_TRANSFORM_TD_AGENT_UPDATE_FALLBACK_SUCCESS" "$fallback_log")"
+                        else
+                            warnings+=("$(format_i18n "$MSG_TRANSFORM_TD_AGENT_UPDATE_FALLBACK_FAILED" "$fallback_log")")
+                        fi
+                    else
+                        warnings+=("$MSG_TRANSFORM_TD_AGENT_UPDATE_FALLBACK_REPO_WRITE_FAILED")
+                    fi
+                fi
+            fi
+        fi
+        if [ "$update_success" -eq 1 ]; then
+            printf "%s\n" "$(format_i18n "$MSG_TRANSFORM_TD_AGENT_INSTALL_SUCCESS" "$final_log")"
+            if command -v rpm >/dev/null 2>&1 && ! rpm -q td-agent >/dev/null 2>&1; then
+                local install_log="${OUTPUT_DIR}/td-agent-install.log"
+                if "${pkg_cmd[@]}" install -y td-agent --disablerepo='*' --enablerepo='treasuredata' >"$install_log" 2>&1; then
+                    printf "%s\n" "$(format_i18n "$MSG_TRANSFORM_TD_AGENT_INSTALL_SUCCESS" "$install_log")"
+                else
+                    warnings+=("$(format_i18n "$MSG_TRANSFORM_TD_AGENT_INSTALL_FAILED" "$install_log")")
+                fi
+            fi
+        else
+            warnings+=("$(format_i18n "$MSG_TRANSFORM_TD_AGENT_INSTALL_FAILED" "$update_log")")
         fi
     else
         warnings+=("$MSG_TRANSFORM_TD_AGENT_POST_TASKS_PKG_TOOL_MISSING")
