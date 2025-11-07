@@ -1814,6 +1814,9 @@ run_transform() {
             local -a proxy_collect_values=()
             local idx=""
             local default_proxy_value="http://172.16.162.6:3128/"
+            local host_name=""
+            local -a no_proxy_components=()
+            local no_proxy_value=""
             proxy_collect_names=(http_proxy https_proxy HTTP_PROXY HTTPS_PROXY)
             proxy_collect_values=(
                 "$default_proxy_value"
@@ -1821,6 +1824,18 @@ run_transform() {
                 "$default_proxy_value"
                 "$default_proxy_value"
             )
+            host_name=$(hostname 2>/dev/null || echo "")
+            no_proxy_components=("127.0.0.1" "localhost")
+            if [[ "$host_name" =~ ^(.+)-01([sSpP])$ ]]; then
+                local no_proxy_prefix=""
+                no_proxy_prefix="${BASH_REMATCH[1]}"
+                no_proxy_components+=("${no_proxy_prefix}-01h" "${no_proxy_prefix}-02h")
+            fi
+            no_proxy_components+=("172.16.0.0/16")
+            no_proxy_value=$(printf '%s, ' "${no_proxy_components[@]}")
+            no_proxy_value=${no_proxy_value%, }
+            proxy_collect_names+=(no_proxy NO_PROXY NO_PROXT)
+            proxy_collect_values+=("$no_proxy_value" "$no_proxy_value" "$no_proxy_value")
             for idx in "${!proxy_collect_values[@]}"; do
                 local proxy_value="${proxy_collect_values[idx]}"
                 proxy_value=${proxy_value//\\/\\\\}

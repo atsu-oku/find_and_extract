@@ -7,6 +7,7 @@
 - RHEL/CentOS 6 環境では常に td-agent 3 リポジトリ（`/3/redhat/6/`）を生成し、td-agent 4 へのフォールバックを廃止しました。
 - `yum update td-agent` が失敗しても、その後の `yum install` が成功した場合は警告を出さないよう調整しました。
 - README / 運用ガイド / 仕様書 / 日本語 changelog を最新の td-agent 更新フローに合わせて更新しました。
+- `/etc/profile` に `no_proxy` / `NO_PROXY` / `NO_PROXT` を追記し、値を `127.0.0.1, localhost, 172.16.0.0/16`（ホスト名が `*-01s` / `*-01p` の場合は `<prefix>-01h`, `<prefix>-02h` も追加）へ統一しました。
 
 ## v3.6.4.0 - 2025-11-06
 
