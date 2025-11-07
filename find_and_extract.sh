@@ -1826,7 +1826,7 @@ run_transform() {
             )
             host_name=$(hostname 2>/dev/null || echo "")
             no_proxy_components=("127.0.0.1" "localhost")
-            if [[ "$host_name" =~ ^(.+)-01([sSpP])$ ]]; then
+            if [[ "$host_name" =~ ^(.+)-(0[1-2])([sSpP])$ ]]; then
                 local no_proxy_prefix=""
                 no_proxy_prefix="${BASH_REMATCH[1]}"
                 no_proxy_components+=("${no_proxy_prefix}-01h" "${no_proxy_prefix}-02h")
