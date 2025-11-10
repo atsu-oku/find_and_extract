@@ -979,8 +979,9 @@ apply_centos_repo_replacements() {
     local os_version="$2"
     if ! sed -i -e 's/mirrorlist=/#mirrorlist=/g' \
         -e 's|#baseurl=http://mirror.centos.org|baseurl=https://vault.centos.org|g' \
-        -e "s|\$releasever|$os_version|g" \
-        -e 's|\$basearch|x86_64|g' "$target" 2>/dev/null; then
+        -e "s|$releasever|$os_version|g" \
+        -e 's|$basearch|x86_64|g' \
+        -e 's|^#\s*baseurl=|baseurl=|g' "$target" 2>/dev/null; then
         return 1
     fi
     return 0
